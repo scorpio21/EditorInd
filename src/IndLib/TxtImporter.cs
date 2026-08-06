@@ -9,14 +9,14 @@ public static class TxtImporter
         var data = new IndFileData { Format = format, FileName = "", HeaderBytes = headerBytes };
         var lines = text.Split('\n');
         IndRecord? current = null;
-        GrhEntry? grh = null;
         for (int lineNo = 1; lineNo <= lines.Length; lineNo++)
         {
             var raw = lines[lineNo - 1];
             var line = raw.TrimEnd('\r').Trim();
-            if (line.Length == 0 || line.StartsWith('#')) continue;
+            if (line.Length == 0 || line.StartsWith('#') || line.StartsWith('\'')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
+                if (format.Kind == IndFormatKind.GrhData) continue;
                 current = new IndRecord { Index = ParseInt(line[1..^1], lineNo, "[sección]") };
                 if (format.Kind == IndFormatKind.FixedRecords || format.Kind == IndFormatKind.TexDefault)
                     data.Records.Add(current);
@@ -30,33 +30,39 @@ public static class TxtImporter
 
             if (format.Kind == IndFormatKind.GrhData)
             {
-                if (key == "Grh")
+                if (line.StartsWith('#') || line.StartsWith('\'')) continue;
+                if (line.Equals("[Graphics]", StringComparison.OrdinalIgnoreCase)) continue;
+                if (line.StartsWith('['))
+                    throw new FormatException($"Línea {lineNo}: sección no esperada '{line}'. Solo se admite el formato GrhN=...");
+                if (!key.StartsWith("Grh", StringComparison.OrdinalIgnoreCase) || key.Length <= 3)
+                    throw new FormatException($"Línea {lineNo}: clave '{key}' inválida. Se esperaba 'GrhN'.");
+                var grhNum = ParseInt(key[3..], lineNo, key);
+                var parts = value.TrimEnd('-').Split('-');
+                var numFrames = ParseInt(parts[0], lineNo, key);
+                var e = new GrhEntry { Grh = grhNum, HasData = true, NumFrames = numFrames };
+                if (numFrames == 1)
                 {
-                    grh = new GrhEntry { Grh = ParseInt(value, lineNo, key) };
-                    data.GrhEntries.Add(grh);
+                    if (parts.Length != 6)
+                        throw new FormatException($"Línea {lineNo}: la entrada estática requiere 6 valores. Línea: '{line}'");
+                    e.FileNum = ParseInt(parts[1], lineNo, key);
+                    e.SX = ParseInt(parts[2], lineNo, key);
+                    e.SY = ParseInt(parts[3], lineNo, key);
+                    e.PixelWidth = ParseInt(parts[4], lineNo, key);
+                    e.PixelHeight = ParseInt(parts[5], lineNo, key);
                 }
-                else if (grh == null)
+                else if (numFrames > 1)
                 {
-                    throw new FormatException($"Línea {lineNo}: campo '{key}' antes de 'Grh'.");
+                    if (parts.Length != numFrames + 2)
+                        throw new FormatException($"Línea {lineNo}: la animación con {numFrames} frames requiere {numFrames + 2} valores. Línea: '{line}'");
+                    e.Frames = new int[numFrames];
+                    for (int j = 0; j < numFrames; j++) e.Frames[j] = ParseInt(parts[1 + j], lineNo, key);
+                    e.Speed = ParseFloat(parts[^1], lineNo, key);
                 }
                 else
                 {
-                    switch (key)
-                    {
-                        case "NumFrames": grh.NumFrames = ParseInt(value, lineNo, key); break;
-                        case "Frames":
-                            grh.Frames = value.Split(',')
-                                .Select(v => ParseInt(v.Trim(), lineNo, key)).ToArray();
-                            break;
-                        case "Velocidad": grh.Speed = ParseFloat(value, lineNo, key); break;
-                        case "FileNum": grh.FileNum = ParseInt(value, lineNo, key); break;
-                        case "SX": grh.SX = ParseInt(value, lineNo, key); break;
-                        case "SY": grh.SY = ParseInt(value, lineNo, key); break;
-                        case "Ancho": grh.PixelWidth = ParseInt(value, lineNo, key); break;
-                        case "Alto": grh.PixelHeight = ParseInt(value, lineNo, key); break;
-                        default: throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
-                    }
+                    throw new FormatException($"Línea {lineNo}: NumFrames inválido ({numFrames}) para Grh{grhNum}.");
                 }
+                data.GrhEntries.Add(e);
                 continue;
             }
 
@@ -107,6 +113,7 @@ public static class TxtImporter
         {
             IndFormatKind.TexDefault => 1,
             IndFormatKind.Minimap => data.MinimapEntries.Count,
+            IndFormatKind.GrhData => data.GrhEntries.Count,
             _ => data.Records.Count,
         };
         return data;
