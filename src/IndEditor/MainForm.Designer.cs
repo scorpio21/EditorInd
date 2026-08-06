@@ -1,4 +1,6 @@
-﻿namespace IndEditor;
+﻿#nullable enable
+
+namespace IndEditor;
 
 partial class MainForm
 {
