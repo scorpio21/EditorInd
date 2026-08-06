@@ -932,7 +932,13 @@ public static class IndFileWriter
     {
         w.Write(e.Grh);
         if (!e.HasData) return;
-        w.Write((short)e.NumFrames);
+        // I1: el writer rechaza estado inconsistente (NumFrames != Frames.Length)
+        // como defensa en profundidad — el save-time check en MainForm da el error
+        // de fila, y este guard impide cualquier write corrupto llegue al disco.
+        if (e.NumFrames > 1 && e.Frames.Length != e.NumFrames)
+            throw new InvalidOperationException(
+                $"Grh {e.Grh}: NumFrames = {e.NumFrames} pero hay {e.Frames.Length} frames.");
+        w.Write(AsShort(e.NumFrames, nameof(e.NumFrames), e.Grh));
         if (e.NumFrames > 1)
         {
             foreach (var f in e.Frames) w.Write(f);
@@ -941,11 +947,21 @@ public static class IndFileWriter
         else
         {
             w.Write(e.FileNum);
-            w.Write((short)e.SX);
-            w.Write((short)e.SY);
-            w.Write((short)e.PixelWidth);
-            w.Write((short)e.PixelHeight);
+            w.Write(AsShort(e.SX, nameof(e.SX), e.Grh));
+            w.Write(AsShort(e.SY, nameof(e.SY), e.Grh));
+            w.Write(AsShort(e.PixelWidth, nameof(e.PixelWidth), e.Grh));
+            w.Write(AsShort(e.PixelHeight, nameof(e.PixelHeight), e.Grh));
         }
+    }
+
+    // I2: rechaza wraparound silencioso de Int32 a Int16 en campos del formato
+    // (NumFrames/SX/SY/Ancho/Alto son Int16) — el grid valida con ColKind.Int16,
+    // y este guard protege cualquier otra ruta de escritura.
+    private static short AsShort(int value, string field, int grh)
+    {
+        if (value is < short.MinValue or > short.MaxValue)
+            throw new InvalidOperationException($"Grh {grh}: {field} = {value} está fuera del rango Int16.");
+        return (short)value;
     }
 
     private static void WriteTexDefault(BinaryWriter w, IndFileData data)
@@ -1157,7 +1173,7 @@ public static class TxtImporter
             if (line.Length == 0 || line.StartsWith('#')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
-                current = new IndRecord { Index = int.Parse(line[1..^1], CultureInfo.InvariantCulture) };
+                current = new IndRecord { Index = ParseInt(line[1..^1], lineNo, "[sección]") };
                 if (format.Kind == IndFormatKind.FixedRecords || format.Kind == IndFormatKind.TexDefault)
                     data.Records.Add(current);
                 continue;
@@ -1172,7 +1188,7 @@ public static class TxtImporter
             {
                 if (key == "Grh")
                 {
-                    grh = new GrhEntry { Grh = int.Parse(value, CultureInfo.InvariantCulture) };
+                    grh = new GrhEntry { Grh = ParseInt(value, lineNo, key) };
                     data.GrhEntries.Add(grh);
                 }
                 else if (grh == null)
@@ -1183,14 +1199,17 @@ public static class TxtImporter
                 {
                     switch (key)
                     {
-                        case "NumFrames": grh.NumFrames = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Frames": grh.Frames = value.Split(',').Select(v => int.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(); break;
-                        case "Velocidad": grh.Speed = float.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "FileNum": grh.FileNum = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "SX": grh.SX = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "SY": grh.SY = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Ancho": grh.PixelWidth = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Alto": grh.PixelHeight = int.Parse(value, CultureInfo.InvariantCulture); break;
+                        case "NumFrames": grh.NumFrames = ParseInt(value, lineNo, key); break;
+                        case "Frames":
+                            grh.Frames = value.Split(',')
+                                .Select(v => ParseInt(v.Trim(), lineNo, key)).ToArray();
+                            break;
+                        case "Velocidad": grh.Speed = ParseFloat(value, lineNo, key); break;
+                        case "FileNum": grh.FileNum = ParseInt(value, lineNo, key); break;
+                        case "SX": grh.SX = ParseInt(value, lineNo, key); break;
+                        case "SY": grh.SY = ParseInt(value, lineNo, key); break;
+                        case "Ancho": grh.PixelWidth = ParseInt(value, lineNo, key); break;
+                        case "Alto": grh.PixelHeight = ParseInt(value, lineNo, key); break;
                         default: throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
                     }
                 }
@@ -1200,7 +1219,7 @@ public static class TxtImporter
             if (format.Kind == IndFormatKind.Minimap)
             {
                 if (key == "Color")
-                    data.MinimapEntries.Add(new MinimapEntry { Grh = 0, Color = uint.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture) });
+                    data.MinimapEntries.Add(new MinimapEntry { Grh = 0, Color = ParseUint(value, lineNo, key) });
                 continue;
             }
 
@@ -1211,12 +1230,17 @@ public static class TxtImporter
             if (dot > 0)
             {
                 var baseName = key[..dot];
-                var idx = int.Parse(key[(dot + 1)..], CultureInfo.InvariantCulture);
-                var field = format.Fields.First(f => f.Name == baseName && f.Type == IndFieldType.Int32Array);
+                var idx = ParseInt(key[(dot + 1)..], lineNo, key);
+                if (idx < 1)
+                    throw new FormatException($"Línea {lineNo}: índice inválido en '{key}'.");
+                var field = format.Fields.FirstOrDefault(f => f.Name == baseName && f.Type == IndFieldType.Int32Array)
+                    ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
+                if (idx > field.Count)
+                    throw new FormatException($"Línea {lineNo}: índice {idx} fuera de rango para '{field.Name}' ({field.Count} elementos).");
                 if (!current.Values.TryGetValue(field.Name, out var existing))
                     existing = new int[field.Count];
                 var arr = (int[])existing;
-                arr[idx - 1] = int.Parse(value, CultureInfo.InvariantCulture);
+                arr[idx - 1] = ParseInt(value, lineNo, key);
                 current.Values[field.Name] = arr;
                 continue;
             }
@@ -1224,12 +1248,13 @@ public static class TxtImporter
                 ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
             current.Values[f2.Name] = f2.Type switch
             {
-                IndFieldType.Int16 => short.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Int32 => int.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Single => float.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+                IndFieldType.Int16 => ParseShort(value, lineNo, key),
+                IndFieldType.Int32 => ParseInt(value, lineNo, key),
+                IndFieldType.Single => ParseFloat(value, lineNo, key),
+                IndFieldType.Byte => ParseByte(value, lineNo, key),
                 IndFieldType.Boolean => (short)(value is "True" or "1" ? -1 : 0),
-                IndFieldType.ByteArray => value.Split(',').Select(v => byte.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(),
+                IndFieldType.ByteArray => value.Split(',')
+                    .Select(v => ParseByte(v.Trim(), lineNo, key)).ToArray(),
                 _ => throw new FormatException($"Línea {lineNo}: tipo no soportado para '{key}'."),
             };
         }
@@ -1241,6 +1266,43 @@ public static class TxtImporter
             _ => data.Records.Count,
         };
         return data;
+    }
+
+    // I3: todo error numérico/de clave lleva "Línea N" — el spec exige
+    // mensaje con número de línea para TXT inválido (design doc, line 187).
+    private static int ParseInt(string value, int lineNo, string key)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static short ParseShort(string value, int lineNo, string key)
+    {
+        if (!short.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static float ParseFloat(string value, int lineNo, string key)
+    {
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static byte ParseByte(string value, int lineNo, string key)
+    {
+        if (!byte.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static uint ParseUint(string value, int lineNo, string key)
+    {
+        if (!uint.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
     }
 }
 ```
@@ -1287,6 +1349,27 @@ internal static class Program
     }
 }
 ```
+
+- [ ] **Step 1b: Helper IndValueLogic (fix C1)**
+
+`src/IndLib/IndValueLogic.cs` (nuevo; extrae la resolución Boolean crudo/normalizado a IndLib para que sea unit-testable):
+```csharp
+namespace IndLib;
+
+// C1: resuelve el valor Int16 que se escribe para un campo Boolean.
+// Si la casilla no cambió (current == (raw != 0)), se conserva el short
+// crudo original (p. ej. 0x00FF) → round-trip byte-exacto.
+// Si el usuario conmutó, se normaliza a -1 (true) o 0 (false).
+public static class IndValueLogic
+{
+    public static short ResolveBoolean(bool current, short raw)
+        => current == (raw != 0) ? raw : (short)(current ? -1 : 0);
+}
+```
+Test (añadir a `tests/IndLib.Tests/RobustnessTests.cs`, ver Step 5b):
+- `ResolveBoolean(true, 0x00FF)` == `(short)0x00FF` (celda intacta, valor no estándar preservado)
+- `ResolveBoolean(false, 0x00FF)` == 0 (conmutada → false)
+- `ResolveBoolean(true, 0)` == `(short)-1` (conmutada → true)
 
 - [ ] **Step 2: Reemplazar MainForm.Designer.cs**
 
@@ -1341,6 +1424,9 @@ public partial class MainForm : Form
     private readonly ToolStripButton _btnRemove = new("Eliminar fila");
 
     private readonly List<(string Name, ColKind Kind)> _colKinds = new();
+    // _boolRaw[r] = mapa columna -> short crudo original del campo Boolean
+    // (preserva valores no estándar como 0x00FF en round-trip; ver Global Constraints)
+    private readonly List<Dictionary<int, short>> _boolRaw = new();
     private IndFileData? _data;
     private string _currentPath = "";
     private string? _graficsPath;
@@ -1485,6 +1571,7 @@ public partial class MainForm : Form
     private void ReloadViews()
     {
         _colKinds.Clear();
+        _boolRaw.Clear();
         _grid.Columns.Clear();
         _grid.Rows.Clear();
         _singlePanel.Visible = false;
@@ -1522,32 +1609,47 @@ public partial class MainForm : Form
         foreach (var rec in _data.Records)
         {
             var cells = new List<object>();
+            var raw = new Dictionary<int, short>();
+            int cellCol = 0;
             foreach (var f in _data.Format.Fields)
             {
                 if (f.Type == IndFieldType.Int32Array)
-                    foreach (var v in (int[])rec.Values[f.Name]) cells.Add(v);
+                {
+                    foreach (var v in (int[])rec.Values[f.Name]) { cells.Add(v); cellCol++; }
+                }
                 else if (f.Type == IndFieldType.ByteArray)
-                    cells.Add(string.Join(",", (byte[])rec.Values[f.Name]));
+                {
+                    cells.Add(string.Join(",", (byte[])rec.Values[f.Name])); cellCol++;
+                }
                 else if (f.Type == IndFieldType.Boolean)
-                    cells.Add(((short)rec.Values[f.Name]) != 0);
+                {
+                    var s = (short)rec.Values[f.Name];
+                    raw[cellCol] = s;
+                    cells.Add(s != 0); cellCol++;
+                }
                 else
-                    cells.Add(rec.Values[f.Name]);
+                {
+                    cells.Add(rec.Values[f.Name]); cellCol++;
+                }
             }
             _grid.Rows.Add(cells.ToArray());
+            _boolRaw.Add(raw);
         }
     }
 
     private void PopulateGrhGrid()
     {
         AddCol("Grh", "Grh", ColKind.Int32);
-        AddCol("NumFrames", "Nº frames", ColKind.Int32);
+        // NumFrames, SX, SY, Ancho, Alto son Int16 en el formato → ColKind.Int16
+        // (validación de rango en la celda; evita wraparound del cast (short) en el writer)
+        AddCol("NumFrames", "Nº frames", ColKind.Int16);
         AddCol("Frames", "Frames", ColKind.IntCsv);
         AddCol("Velocidad", "Velocidad", ColKind.Single);
         AddCol("FileNum", "Archivo", ColKind.Int32);
-        AddCol("SX", "SX", ColKind.Int32);
-        AddCol("SY", "SY", ColKind.Int32);
-        AddCol("Ancho", "Ancho", ColKind.Int32);
-        AddCol("Alto", "Alto", ColKind.Int32);
+        AddCol("SX", "SX", ColKind.Int16);
+        AddCol("SY", "SY", ColKind.Int16);
+        AddCol("Ancho", "Ancho", ColKind.Int16);
+        AddCol("Alto", "Alto", ColKind.Int16);
         foreach (var e in _data!.GrhEntries)
         {
             bool anim = e.HasData && e.NumFrames > 1;
@@ -1645,7 +1747,13 @@ public partial class MainForm : Form
                 }
                 else if (f.Type == IndFieldType.Boolean)
                 {
-                    rec.Values[f.Name] = (bool)CellValue(r, col) ? (short)-1 : (short)0; col++;
+                    // C1: preservar el short crudo original si la celda no cambió
+                    // (round-trip byte-exacto para valores no estándar como 0x00FF);
+                    // solo normalizar a -1/0 cuando el usuario realmente conmutó la casilla.
+                    var current = (bool)CellValue(r, col);
+                    var raw = _boolRaw[r].TryGetValue(col, out var rv) ? rv : (short)0;
+                    rec.Values[f.Name] = IndValueLogic.ResolveBoolean(current, raw);
+                    col++;
                 }
                 else
                 {
@@ -1668,7 +1776,12 @@ public partial class MainForm : Form
             e.HasData = e.Grh != 0;
             if (e.NumFrames > 1)
             {
+                // I1: validar NumFrames vs Frames antes de escribir — un desajuste
+                // desincroniza silenciosamente todos los registros siguientes en el archivo.
                 e.Frames = ParseIntCsv(_grid.Rows[r].Cells[2].Value?.ToString());
+                if (e.Frames.Length != e.NumFrames)
+                    throw new InvalidOperationException(
+                        $"Fila {r + 1}: NumFrames = {e.NumFrames} pero hay {e.Frames.Length} frames.");
                 e.Speed = CellFloat(r, 3);
             }
             else
@@ -1739,6 +1852,7 @@ public partial class MainForm : Form
                     else cells.Add(0);
                 }
                 _grid.Rows.Add(cells.ToArray());
+                _boolRaw.Add(new Dictionary<int, short>()); // fila nueva: Boolean raw 0 por defecto
                 break;
             case IndFormatKind.GrhData:
                 _grid.Rows.Add(0, 0, "", 0f, 0, 0, 0, 0, 0);
@@ -1753,7 +1867,9 @@ public partial class MainForm : Form
     private void RemoveRow(object? sender, EventArgs e)
     {
         if (_data == null || _grid.SelectedRows.Count == 0) return;
-        _grid.Rows.RemoveAt(_grid.SelectedRows[0].Index);
+        var idx = _grid.SelectedRows[0].Index;
+        _grid.Rows.RemoveAt(idx);
+        _boolRaw.RemoveAt(idx);
         UpdateStatus();
     }
 
@@ -1854,4 +1970,30 @@ Expected: la ventana abre. Probar: Abrir `K:\Descargas\aaoo\init\ataques.ind` �
 ```bash
 git add src/IndEditor tests
 git commit -m "feat: UI WinForms con vista de cuadrícula, guardar y exportar/importar TXT"
+```
+
+### Fix wave de la revisión final (C1, I1, I2, I3)
+
+Correcciones aprobadas por la revisión final de toda la rama (verdict del reviewer en `review-1f0a884..3d1e43b.diff`). Todos eran defectos del plan: la Task 8 reintrodujo normalización Boolean y validación débil que la Task 6 ya había corregido a nivel librería.
+
+- **C1 (P0, bloquea merge)**: la UI normalizaba todo Boolean a `-1/0` al guardar → rompía el round-trip byte-exacto de `fxs.ind` (rec58 `FXTransparente=0x00FF`) incluso en un save sin editar. Fix: espejo `_boolRaw[r][col]` con el short crudo original; `SaveFixedFromGrid` solo normaliza si el usuario conmutó la casilla (vía `IndValueLogic.ResolveBoolean`). Sincronización en `ReloadViews` (clear), `PopulateFixedGrid` (registro), `AddRow` (diccionario vacío) y `RemoveRow` (RemoveAt por índice capturado).
+- **I1 (P1, bloquea merge)**: la vista Grh podía escribir `graficos.ind` con `NumFrames != Frames.Length` (desync silencioso de todos los registros siguientes). Fix: check en `SaveGrhFromGrid` (InvalidOperationException con "Fila N: ...") y guard en `IndFileWriter.WriteGrhEntry` (defensa en profundidad).
+- **I2 (P1, bloquea merge)**: `NumFrames`/`SX`/`SY`/`Ancho`/`Alto` son Int16 en el formato pero el grid validaba Int32 → wraparound silencioso del cast `(short)` (40000 → -25536). Fix: `ColKind.Int16` en `PopulateGrhGrid` para esos 5 campos + guard `AsShort` en `IndFileWriter` (rechaza fuera de rango Int16 con mensaje).
+- **I3 (P1, bloquea merge)**: `TxtImporter` lanzaba excepciones crudas sin número de línea en claves con punto (`Body.x`, `Body.9`, índice fuera de rango) y parses numéricos. Fix: helpers `ParseInt/ParseShort/ParseFloat/ParseByte/ParseUint` con mensaje `"Línea N: ..."`; `First` → `FirstOrDefault` + `FormatException` con contexto; validación de índice `< 1` y `> field.Count`.
+
+**Tests de regresión (nuevo `tests/IndLib.Tests/RobustnessTests.cs`):**
+1. `IndValueLogic.ResolveBoolean` preserve/toggle (C1) — ver Step 1b.
+2. `WriteGrhEntry` rechaza `NumFrames=3, Frames=[1,2]` (I1) — `Assert.Throws<InvalidOperationException>`.
+3. `WriteGrhEntry` rechaza `Ancho=40000` (I2) — `Assert.Throws<InvalidOperationException>`.
+4. `TxtImporter` sobre `Body.0`, `Body.9`, `Body.x`, `NumFrames = abc` → `FormatException` con `Message.StartsWith("Línea ")` (I3).
+
+**Pasos:**
+1. Añadir `src/IndLib/IndValueLogic.cs` y `tests/IndLib.Tests/RobustnessTests.cs`.
+2. Aplicar C1/I1/I2 en `src/IndEditor/MainForm.cs` (SaveFixedFromGrid, PopulateGrhGrid, SaveGrhFromGrid, `_boolRaw`) y guards en `src/IndLib/IndFileWriter.cs` (`AsShort`, frames-check).
+3. Aplicar I3 en `src/IndLib/TxtImporter.cs`.
+4. Run: `dotnet test tests/IndLib.Tests` (41 + nuevas, todas PASS); `dotnet build` IndEditor sin warnings.
+5. Commit (mensaje en inglés, estilo del repo):
+```bash
+git add src/IndLib/IndValueLogic.cs src/IndLib/TxtImporter.cs src/IndLib/IndFileWriter.cs src/IndEditor/MainForm.cs tests/IndLib.Tests/RobustnessTests.cs
+git commit -m "fix: final review — preserve raw Boolean in UI (C1), validate Grh NumFrames/Int16 (I1/I2), Línea N errors in TxtImporter (I3)"
 ```
