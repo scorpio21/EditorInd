@@ -26,19 +26,19 @@ public class ParseTests
     {
         var rec = IndFileReader.Read(P("ataques.ind")).Records[0];
         var body = (int[])rec.Values["Body"];
-        Assert.Equal(200, body[0]);
-        Assert.Equal(27, body[1]);
-        Assert.Equal(0, body[2]);
-        Assert.Equal(200, body[3]);
+        Assert.Equal(20466, body[0]);
+        Assert.Equal(20467, body[1]);
+        Assert.Equal(20469, body[2]);
+        Assert.Equal(20468, body[3]);
         Assert.Equal(0, (short)rec.Values["HeadOffsetX"]);
-        Assert.Equal(160, (short)rec.Values["HeadOffsetY"]);
+        Assert.Equal(0, (short)rec.Values["HeadOffsetY"]);
     }
 
     [Fact]
     public void Cabezas_PrimerRegistro_Valores()
     {
         var rec = IndFileReader.Read(P("cabezas.ind")).Records[0];
-        Assert.Equal(200, (short)rec.Values["Texture"]);
+        Assert.Equal(202, (short)rec.Values["Texture"]);
     }
 
     [Fact]

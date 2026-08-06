@@ -56,7 +56,7 @@ public static class IndFileReader
                     rec.Values[f.Name] = s[off]; off += 1; break;
                 case IndFieldType.Int32Array:
                     var arr = new int[f.Count];
-                    for (int j = 0; j < f.Count; j++) arr[j] = BitConverter.ToInt32(s.Slice(off, 4));
+                    for (int j = 0; j < f.Count; j++) arr[j] = BitConverter.ToInt32(s.Slice(off + j * 4, 4));
                     off += f.Count * 4;
                     rec.Values[f.Name] = arr;
                     break;
