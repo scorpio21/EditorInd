@@ -74,11 +74,66 @@ public static class IndFileReader
     }
 
     private static IndFileData ReadGrh(byte[] bytes, IndFormat format, string fileName)
-        => throw new NotImplementedException("Task 4");
+    {
+        var data = new IndFileData { Format = format, FileName = fileName };
+        if (bytes.Length < 8) throw new InvalidDataException("graficos.ind truncado.");
+        data.HeaderBytes = bytes.AsSpan(0, 8).ToArray();
+        data.GrhCount = BitConverter.ToInt32(bytes, 4);
+        data.GrhEntries.AddRange(ReadGrhEntries(bytes.AsSpan(8)));
+        data.Count = data.GrhEntries.Count;
+        return data;
+    }
+
+    public static List<GrhEntry> ReadGrhEntries(ReadOnlySpan<byte> s)
+    {
+        var list = new List<GrhEntry>();
+        int pos = 0;
+        while (pos < s.Length)
+        {
+            if (pos + 4 > s.Length) throw new InvalidDataException("graficos.ind truncado (Grh).");
+            int grh = BitConverter.ToInt32(s.Slice(pos, 4)); pos += 4;
+            var e = new GrhEntry { Grh = grh, HasData = grh != 0 };
+            if (grh != 0)
+            {
+                if (pos + 2 > s.Length) throw new InvalidDataException("graficos.ind truncado (NumFrames).");
+                e.NumFrames = BitConverter.ToInt16(s.Slice(pos, 2)); pos += 2;
+                if (e.NumFrames > 1)
+                {
+                    int n = e.NumFrames;
+                    if (pos + n * 4 + 4 > s.Length) throw new InvalidDataException("graficos.ind truncado (Frames).");
+                    e.Frames = new int[n];
+                    for (int j = 0; j < n; j++) { e.Frames[j] = BitConverter.ToInt32(s.Slice(pos, 4)); pos += 4; }
+                    e.Speed = BitConverter.ToSingle(s.Slice(pos, 4)); pos += 4;
+                }
+                else
+                {
+                    if (pos + 12 > s.Length) throw new InvalidDataException("graficos.ind truncado (estático).");
+                    e.FileNum = BitConverter.ToInt32(s.Slice(pos, 4)); pos += 4;
+                    e.SX = BitConverter.ToInt16(s.Slice(pos, 2)); pos += 2;
+                    e.SY = BitConverter.ToInt16(s.Slice(pos, 2)); pos += 2;
+                    e.PixelWidth = BitConverter.ToInt16(s.Slice(pos, 2)); pos += 2;
+                    e.PixelHeight = BitConverter.ToInt16(s.Slice(pos, 2)); pos += 2;
+                }
+            }
+            list.Add(e);
+        }
+        return list;
+    }
+
+    public static List<int> GetActiveGrhIndices(byte[] graficsBytes)
+    {
+        var set = new HashSet<int>();
+        foreach (var e in ReadGrhEntries(graficsBytes.AsSpan(8)))
+            if (e.Grh != 0) set.Add(e.Grh);
+        var list = set.ToList();
+        list.Sort();
+        return list;
+    }
+
     private static IndFileData ReadTexDefault(byte[] bytes, IndFormat format, string fileName)
         => throw new NotImplementedException("Task 5");
     private static IndFileData ReadMinimap(byte[] bytes, IndFormat format, string fileName, string? graficsPath)
         => throw new NotImplementedException("Task 5");
 
-    // ReadGrh, ReadTexDefault, ReadMinimap, ReadGrhEntries, GetActiveGrhIndices se añaden en Tasks 4 y 5.
+    // ReadTexDefault, ReadMinimap se añaden en Task 5.
 }
