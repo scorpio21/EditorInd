@@ -21,6 +21,16 @@ public class TxtTests
     }
 
     [Fact]
+    public void Grafics_ExportImport_RoundTripCompacto()
+    {
+        var data = IndFileReader.Read(P("graficos.ind"));
+        var txt = TxtExporter.Export(data);
+        var imported = TxtImporter.Import(txt, data.Format, data.HeaderBytes);
+        Assert.Equal(IndFileWriter.ToBytes(data), IndFileWriter.ToBytes(imported));
+        Assert.Equal(data.Count, imported.Count);
+    }
+
+    [Fact]
     public void Ataques_ExportContieneBloque()
     {
         var txt = TxtExporter.Export(IndFileReader.Read(P("ataques.ind")));

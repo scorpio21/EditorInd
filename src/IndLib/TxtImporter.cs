@@ -52,11 +52,11 @@ public static class TxtImporter
                 }
                 else if (numFrames > 1)
                 {
-                    if (parts.Length != numFrames + 2)
-                        throw new FormatException($"Línea {lineNo}: la animación con {numFrames} frames requiere {numFrames + 2} valores. Línea: '{line}'");
+                    if (parts.Length < numFrames + 2)
+                        throw new FormatException($"Línea {lineNo}: la animación con {numFrames} frames requiere al menos {numFrames + 2} valores. Línea: '{line}'");
                     e.Frames = new int[numFrames];
                     for (int j = 0; j < numFrames; j++) e.Frames[j] = ParseInt(parts[1 + j], lineNo, key);
-                    e.Speed = ParseFloat(parts[^1], lineNo, key);
+                    e.Speed = ParseFloat(string.Join("-", parts[(1 + numFrames)..]), lineNo, key);
                 }
                 else
                 {
