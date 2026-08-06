@@ -8,7 +8,6 @@ public partial class MainForm : Form
     private enum ColKind { Int16, Int32, Single, Byte, Bool, IntCsv, ByteCsv, HexColor, ReadOnlyInt }
 
     private readonly MenuStrip _menu = new();
-    private readonly ToolStrip _toolbar = new();
     private readonly StatusStrip _status = new();
     private readonly ToolStripStatusLabel _lblFile = new() { Text = "Sin archivo" };
     private readonly ToolStripStatusLabel _lblFormat = new();
@@ -16,8 +15,8 @@ public partial class MainForm : Form
     private readonly ToolStripStatusLabel _lblSize = new();
     private readonly DataGridView _grid = new();
     private readonly Panel _singlePanel = new();
-    private readonly ToolStripButton _btnAdd = new("Añadir fila");
-    private readonly ToolStripButton _btnRemove = new("Eliminar fila");
+    private readonly ToolStripMenuItem _menuAdd = new("&Añadir fila");
+    private readonly ToolStripMenuItem _menuRemove = new("&Eliminar fila");
 
     private readonly List<(string Name, ColKind Kind)> _colKinds = new();
     // _boolRaw[r] = mapa columna -> short crudo original del campo Boolean
@@ -32,15 +31,14 @@ public partial class MainForm : Form
         InitializeComponent();
         Text = "IndEditor — Editor de archivos .ind/.dat";
         StartPosition = FormStartPosition.CenterScreen;
-        BuildMenu();
-        BuildToolbar();
-        BuildGrid();
-        BuildStatus();
         Controls.Add(_grid);
         Controls.Add(_singlePanel);
         _grid.Dock = DockStyle.Fill;
         _singlePanel.Dock = DockStyle.Fill;
         _singlePanel.Visible = false;
+        BuildMenu();
+        BuildGrid();
+        BuildStatus();
         AllowDrop = true;
         DragEnter += (_, e) =>
         {
@@ -63,6 +61,11 @@ public partial class MainForm : Form
         file.DropDownItems.Add(Item("&Exportar TXT...", ExportTxt));
         file.DropDownItems.Add(Item("&Importar TXT...", ImportTxt));
         file.DropDownItems.Add(new ToolStripSeparator());
+        _menuAdd.Click += AddRow;
+        _menuRemove.Click += RemoveRow;
+        file.DropDownItems.Add(_menuAdd);
+        file.DropDownItems.Add(_menuRemove);
+        file.DropDownItems.Add(new ToolStripSeparator());
         file.DropDownItems.Add(Item("&Salir", (_, _) => Close()));
         _menu.Items.Add(file);
         var help = new ToolStripMenuItem("&Ayuda");
@@ -70,22 +73,6 @@ public partial class MainForm : Form
         _menu.Items.Add(help);
         _menu.Dock = DockStyle.Top;
         Controls.Add(_menu);
-    }
-
-    private void BuildToolbar()
-    {
-        AddTool("Abrir", OpenFileDialog);
-        AddTool("Guardar", SaveFile);
-        _toolbar.Items.Add(new ToolStripSeparator());
-        AddTool("Exportar TXT", ExportTxt);
-        AddTool("Importar TXT", ImportTxt);
-        _toolbar.Items.Add(new ToolStripSeparator());
-        _btnAdd.Click += AddRow;
-        _btnRemove.Click += RemoveRow;
-        _toolbar.Items.Add(_btnAdd);
-        _toolbar.Items.Add(_btnRemove);
-        _toolbar.Dock = DockStyle.Top;
-        Controls.Add(_toolbar);
     }
 
     private void BuildGrid()
@@ -114,13 +101,6 @@ public partial class MainForm : Form
         var item = new ToolStripMenuItem(text, null, handler);
         if (keys.HasValue) item.ShortcutKeys = keys.Value;
         return item;
-    }
-
-    private void AddTool(string text, EventHandler handler)
-    {
-        var b = new ToolStripButton(text);
-        b.Click += handler;
-        _toolbar.Items.Add(b);
     }
 
     private void AddCol(string name, string header, ColKind kind, bool readOnly = false)
@@ -172,8 +152,8 @@ public partial class MainForm : Form
         _grid.Rows.Clear();
         _singlePanel.Visible = false;
         _grid.Visible = true;
-        _btnAdd.Enabled = _data!.Format.Kind != IndFormatKind.TexDefault;
-        _btnRemove.Enabled = _data.Format.Kind != IndFormatKind.TexDefault;
+        _menuAdd.Enabled = _data!.Format.Kind != IndFormatKind.TexDefault;
+        _menuRemove.Enabled = _data.Format.Kind != IndFormatKind.TexDefault;
         switch (_data.Format.Kind)
         {
             case IndFormatKind.FixedRecords: PopulateFixedGrid(); break;
