@@ -1292,6 +1292,8 @@ internal static class Program
 
 `src/IndEditor/MainForm.Designer.cs`:
 ```csharp
+#nullable enable
+
 namespace IndEditor;
 
 partial class MainForm
@@ -1652,7 +1654,7 @@ public partial class MainForm : Form
             }
             records.Add(rec);
         }
-        _data.Records.Clear();
+        _data!.Records.Clear();
         _data.Records.AddRange(records);
         _data.Count = records.Count;
     }
@@ -1679,14 +1681,14 @@ public partial class MainForm : Form
             }
             entries.Add(e);
         }
-        _data.GrhEntries.Clear();
+        _data!.GrhEntries.Clear();
         _data.GrhEntries.AddRange(entries);
         _data.Count = entries.Count;
     }
 
     private void SaveMinimapFromGrid()
     {
-        _data.MinimapEntries.Clear();
+        _data!.MinimapEntries.Clear();
         for (int r = 0; r < _grid.Rows.Count; r++)
         {
             var color = uint.Parse(_grid.Rows[r].Cells[1].Value?.ToString() ?? "0", NumberStyles.HexNumber);
