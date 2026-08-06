@@ -757,7 +757,7 @@ public class DatTests
     public void Minimap_PrimerColor()
     {
         var data = IndFileReader.Read(P("minimap.dat"), P("graficos.ind"));
-        Assert.Equal(1u, data.MinimapEntries[0].Grh);
+        Assert.Equal(1, data.MinimapEntries[0].Grh);
         Assert.Equal(0x00000000u, data.MinimapEntries[0].Color);
         Assert.Equal(0x000000FFu, data.MinimapEntries[1].Color);
     }
