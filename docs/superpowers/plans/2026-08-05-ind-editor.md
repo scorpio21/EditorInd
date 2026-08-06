@@ -15,7 +15,7 @@
 - Round-trip byte-exacto: leer → escribir → los bytes deben ser idénticos al original (todas las pruebas lo verifican).
 - Cabecera `tCabecera` (263 B) preservada como bytes crudos, nunca recalculada.
 - Formato detectado por nombre de archivo exacto (case-insensitive).
-- Valores VB6: `Integer`=Int16, `Long`=Int32, `Single`=float, `Boolean`=2 bytes (True = 0xFFFF).
+- Valores VB6: `Integer`=Int16, `Long`=Int32, `Single`=float, `Boolean`=2 bytes. Los campos `Boolean` se guardan como `short` crudo en `Values` (True suele ser 0xFFFF, pero archivos reales pueden contener otros valores no-cero, p. ej. `fxs.ind` rec58 = 0x00FF); la interpretación como true (≠0) ocurre solo en UI/TXT, y el writer reproduce el valor crudo para round-trip byte-exacto.
 - Archivos reales de prueba en `K:\Descargas\aaoo\init\` (ruta sobreescribible con variable de entorno `AO_INIT_DIR`).
 - No modificar el directorio del juego directamente; Guardar pregunta y ofrece copia `.bak`.
 
@@ -524,7 +524,7 @@ public static class IndFileReader
                 case IndFieldType.Single:
                     rec.Values[f.Name] = BitConverter.ToSingle(s.Slice(off, 4)); off += 4; break;
                 case IndFieldType.Boolean:
-                    rec.Values[f.Name] = BitConverter.ToInt16(s.Slice(off, 2)) != 0; off += 2; break;
+                    rec.Values[f.Name] = BitConverter.ToInt16(s.Slice(off, 2)); off += 2; break;
                 case IndFieldType.Byte:
                     rec.Values[f.Name] = s[off]; off += 1; break;
                 case IndFieldType.Int32Array:
@@ -914,7 +914,7 @@ public static class IndFileWriter
                 case IndFieldType.Int16: w.Write((short)rec.Values[f.Name]); break;
                 case IndFieldType.Int32: w.Write((int)rec.Values[f.Name]); break;
                 case IndFieldType.Single: w.Write((float)rec.Values[f.Name]); break;
-                case IndFieldType.Boolean: w.Write((bool)rec.Values[f.Name] ? (short)-1 : (short)0); break;
+                case IndFieldType.Boolean: w.Write((short)rec.Values[f.Name]); break;
                 case IndFieldType.Byte: w.Write((byte)rec.Values[f.Name]); break;
                 case IndFieldType.Int32Array:
                     foreach (var v in (int[])rec.Values[f.Name]) w.Write(v);
@@ -1102,7 +1102,7 @@ public static class TxtExporter
             }
             else if (f.Type == IndFieldType.Boolean)
             {
-                sb.AppendLine($"{f.Name} = {((bool)rec.Values[f.Name] ? "True" : "False")}");
+                sb.AppendLine($"{f.Name} = {(((short)rec.Values[f.Name]) != 0 ? "True" : "False")}");
             }
             else
             {
@@ -1227,7 +1227,7 @@ public static class TxtImporter
                 IndFieldType.Int32 => int.Parse(value, CultureInfo.InvariantCulture),
                 IndFieldType.Single => float.Parse(value, CultureInfo.InvariantCulture),
                 IndFieldType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Boolean => value is "True" or "1",
+                IndFieldType.Boolean => (short)(value is "True" or "1" ? -1 : 0),
                 IndFieldType.ByteArray => value.Split(',').Select(v => byte.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(),
                 _ => throw new FormatException($"Línea {lineNo}: tipo no soportado para '{key}'."),
             };
@@ -1525,6 +1525,8 @@ public partial class MainForm : Form
                     foreach (var v in (int[])rec.Values[f.Name]) cells.Add(v);
                 else if (f.Type == IndFieldType.ByteArray)
                     cells.Add(string.Join(",", (byte[])rec.Values[f.Name]));
+                else if (f.Type == IndFieldType.Boolean)
+                    cells.Add(((short)rec.Values[f.Name]) != 0);
                 else
                     cells.Add(rec.Values[f.Name]);
             }
@@ -1637,6 +1639,10 @@ public partial class MainForm : Form
                 else if (f.Type == IndFieldType.ByteArray)
                 {
                     rec.Values[f.Name] = CellBytes(r, col); col++;
+                }
+                else if (f.Type == IndFieldType.Boolean)
+                {
+                    rec.Values[f.Name] = (bool)CellValue(r, col) ? (short)-1 : (short)0; col++;
                 }
                 else
                 {
