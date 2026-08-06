@@ -27,4 +27,15 @@ public class TxtTests
         Assert.Contains("# Formato: tIndiceAtaque", txt);
         Assert.Contains("Body.1 = 20466", txt);
     }
+
+    [Fact]
+    public void Grafics_ExportFormatoCompacto()
+    {
+        var data = IndFileReader.Read(P("graficos.ind"));
+        var txt = TxtExporter.Export(data);
+        Assert.Contains("[Graphics]", txt);
+        Assert.Contains("\r\nGrh1=1-1-64-0-32-32-\r\n", txt);
+        Assert.DoesNotContain("# Formato: GrhData", txt);
+        Assert.DoesNotContain("NumFrames =", txt);
+    }
 }

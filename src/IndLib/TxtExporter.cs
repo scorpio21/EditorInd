@@ -8,9 +8,12 @@ public static class TxtExporter
     public static string Export(IndFileData data)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# IndEditor v1.0");
-        sb.AppendLine($"# Archivo: {data.FileName}");
-        sb.AppendLine($"# Formato: {data.Format.Name}");
+        if (data.Format.Kind != IndFormatKind.GrhData)
+        {
+            sb.AppendLine("# IndEditor v1.0");
+            sb.AppendLine($"# Archivo: {data.FileName}");
+            sb.AppendLine($"# Formato: {data.Format.Name}");
+        }
         switch (data.Format.Kind)
         {
             case IndFormatKind.FixedRecords:
@@ -23,12 +26,15 @@ public static class TxtExporter
                 }
                 break;
             case IndFormatKind.GrhData:
-                sb.AppendLine($"# Entradas: {data.GrhEntries.Count}");
-                for (int i = 0; i < data.GrhEntries.Count; i++)
+                sb.AppendLine("'Graficos.ind desindexado con IndEditor");
+                sb.AppendLine($"'{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine();
+                sb.AppendLine("[Graphics]");
+                foreach (var e in data.GrhEntries)
                 {
+                    if (!e.HasData) continue;
                     sb.AppendLine();
-                    sb.AppendLine($"[{i + 1}]");
-                    WriteGrhEntry(sb, data.GrhEntries[i]);
+                    WriteGrhCompact(sb, e);
                 }
                 break;
             case IndFormatKind.TexDefault:
@@ -97,5 +103,25 @@ public static class TxtExporter
             sb.AppendLine($"Ancho = {e.PixelWidth}");
             sb.AppendLine($"Alto = {e.PixelHeight}");
         }
+    }
+
+    private static void WriteGrhCompact(StringBuilder sb, GrhEntry e)
+    {
+        sb.Append($"Grh{e.Grh}=");
+        if (e.NumFrames > 1)
+        {
+            sb.Append(e.NumFrames).Append('-');
+            foreach (var f in e.Frames) sb.Append(f).Append('-');
+            sb.Append(e.Speed.ToString("R", CultureInfo.InvariantCulture)).Append('-');
+        }
+        else
+        {
+            sb.Append("1-").Append(e.FileNum).Append('-')
+              .Append(e.SX).Append('-')
+              .Append(e.SY).Append('-')
+              .Append(e.PixelWidth).Append('-')
+              .Append(e.PixelHeight).Append('-');
+        }
+        sb.AppendLine();
     }
 }
