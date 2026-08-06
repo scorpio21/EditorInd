@@ -1017,7 +1017,7 @@ public class TxtTests
     {
         var txt = TxtExporter.Export(IndFileReader.Read(P("ataques.ind")));
         Assert.Contains("# Formato: tIndiceAtaque", txt);
-        Assert.Contains("Body.1 = 200", txt);
+        Assert.Contains("Body.1 = 20466", txt);
     }
 }
 ```
@@ -1066,6 +1066,7 @@ public static class TxtExporter
                 break;
             case IndFormatKind.TexDefault:
                 sb.AppendLine();
+                sb.AppendLine("[1]");
                 WriteRecord(sb, data.Format, data.Records[0]);
                 break;
             case IndFormatKind.Minimap:
