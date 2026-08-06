@@ -129,7 +129,12 @@ public class DetectorTests
     public void Detect_Desconocido_DevuelveNull()
     {
         Assert.Null(IndFormatDetector.Detect("basura.dat"));
-        Assert.Null(IndFormatDetector.Detect("ATAQUES.IND")); // se normaliza a minúsculas
+    }
+
+    [Fact]
+    public void Detect_CaseInsensitive()
+    {
+        Assert.Equal(IndFormatCatalog.Ataques, IndFormatDetector.Detect("ATAQUES.IND"));
     }
 
     [Fact]
@@ -1144,9 +1149,9 @@ public static class TxtImporter
         var lines = text.Split('\n');
         IndRecord? current = null;
         GrhEntry? grh = null;
-        foreach (var raw in lines)
+        for (int lineNo = 1; lineNo <= lines.Length; lineNo++)
         {
-            var ln = lines.ToList().IndexOf(raw) + 1;
+            var raw = lines[lineNo - 1];
             var line = raw.TrimEnd('\r').Trim();
             if (line.Length == 0 || line.StartsWith('#')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
@@ -1158,7 +1163,7 @@ public static class TxtImporter
             }
             var eq = line.IndexOf('=');
             if (eq <= 0)
-                throw new FormatException($"Línea {ln}: se esperaba 'campo = valor'. Línea: '{line}'");
+                throw new FormatException($"Línea {lineNo}: se esperaba 'campo = valor'. Línea: '{line}'");
             var key = line[..eq].Trim();
             var value = line[(eq + 1)..].Trim();
 
@@ -1171,7 +1176,7 @@ public static class TxtImporter
                 }
                 else if (grh == null)
                 {
-                    throw new FormatException($"Línea {ln}: campo '{key}' antes de 'Grh'.");
+                    throw new FormatException($"Línea {lineNo}: campo '{key}' antes de 'Grh'.");
                 }
                 else
                 {
@@ -1185,7 +1190,7 @@ public static class TxtImporter
                         case "SY": grh.SY = int.Parse(value, CultureInfo.InvariantCulture); break;
                         case "Ancho": grh.PixelWidth = int.Parse(value, CultureInfo.InvariantCulture); break;
                         case "Alto": grh.PixelHeight = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        default: throw new FormatException($"Línea {ln}: campo desconocido '{key}'.");
+                        default: throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
                     }
                 }
                 continue;
@@ -1200,7 +1205,7 @@ public static class TxtImporter
 
             // FixedRecords / TexDefault
             if (current == null)
-                throw new FormatException($"Línea {ln}: valor '{key}' antes de la sección [n].");
+                throw new FormatException($"Línea {lineNo}: valor '{key}' antes de la sección [n].");
             var dot = key.LastIndexOf('.');
             if (dot > 0)
             {
@@ -1215,7 +1220,7 @@ public static class TxtImporter
                 continue;
             }
             var f2 = format.Fields.FirstOrDefault(f => f.Name == key)
-                ?? throw new FormatException($"Línea {ln}: campo desconocido '{key}'.");
+                ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
             current.Values[f2.Name] = f2.Type switch
             {
                 IndFieldType.Int16 => short.Parse(value, CultureInfo.InvariantCulture),
@@ -1224,7 +1229,7 @@ public static class TxtImporter
                 IndFieldType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
                 IndFieldType.Boolean => value is "True" or "1",
                 IndFieldType.ByteArray => value.Split(',').Select(v => byte.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(),
-                _ => throw new FormatException($"Línea {ln}: tipo no soportado para '{key}'."),
+                _ => throw new FormatException($"Línea {lineNo}: tipo no soportado para '{key}'."),
             };
         }
         foreach (var e in data.GrhEntries) e.HasData = e.Grh != 0;
@@ -1313,7 +1318,6 @@ partial class MainForm
 ```csharp
 using System.Globalization;
 using IndLib;
-using IndLib.Models;
 
 namespace IndEditor;
 
