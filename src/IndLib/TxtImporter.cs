@@ -16,7 +16,13 @@ public static class TxtImporter
             if (line.Length == 0 || line.StartsWith('#') || line.StartsWith('\'')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
-                if (format.Kind == IndFormatKind.GrhData) continue;
+                if (format.Kind == IndFormatKind.GrhData)
+                {
+                    var section = line[1..^1].Trim();
+                    if (section.Equals("Graphics", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (int.TryParse(section, NumberStyles.Integer, CultureInfo.InvariantCulture, out _)) continue;
+                    throw new FormatException($"Línea {lineNo}: sección no esperada '{line}'.");
+                }
                 current = new IndRecord { Index = ParseInt(line[1..^1], lineNo, "[sección]") };
                 if (format.Kind == IndFormatKind.FixedRecords || format.Kind == IndFormatKind.TexDefault)
                     data.Records.Add(current);
@@ -30,16 +36,14 @@ public static class TxtImporter
 
             if (format.Kind == IndFormatKind.GrhData)
             {
-                if (line.StartsWith('#') || line.StartsWith('\'')) continue;
-                if (line.Equals("[Graphics]", StringComparison.OrdinalIgnoreCase)) continue;
-                if (line.StartsWith('['))
-                    throw new FormatException($"Línea {lineNo}: sección no esperada '{line}'. Solo se admite el formato GrhN=...");
                 if (!key.StartsWith("Grh", StringComparison.OrdinalIgnoreCase) || key.Length <= 3)
                     throw new FormatException($"Línea {lineNo}: clave '{key}' inválida. Se esperaba 'GrhN'.");
                 var grhNum = ParseInt(key[3..], lineNo, key);
+                if (grhNum <= 0)
+                    throw new FormatException($"Línea {lineNo}: índice Grh inválido ({grhNum}).");
                 var parts = value.TrimEnd('-').Split('-');
                 var numFrames = ParseInt(parts[0], lineNo, key);
-                var e = new GrhEntry { Grh = grhNum, HasData = true, NumFrames = numFrames };
+                var e = new GrhEntry { Grh = grhNum, NumFrames = numFrames };
                 if (numFrames == 1)
                 {
                     if (parts.Length != 6)

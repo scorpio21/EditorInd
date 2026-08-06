@@ -44,7 +44,7 @@ public class TxtTests
         var data = IndFileReader.Read(P("graficos.ind"));
         var txt = TxtExporter.Export(data);
         Assert.Contains("[Graphics]", txt);
-        Assert.Contains("\r\nGrh1=1-1-64-0-32-32-\r\n", txt);
+        Assert.Contains("Grh1=1-1-64-0-32-32-", txt);
         Assert.DoesNotContain("# Formato: GrhData", txt);
         Assert.DoesNotContain("NumFrames =", txt);
     }

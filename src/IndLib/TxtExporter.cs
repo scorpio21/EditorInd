@@ -85,42 +85,22 @@ public static class TxtExporter
         }
     }
 
-    private static void WriteGrhEntry(StringBuilder sb, GrhEntry e)
-    {
-        sb.AppendLine($"Grh = {e.Grh}");
-        if (!e.HasData) return;
-        sb.AppendLine($"NumFrames = {e.NumFrames}");
-        if (e.NumFrames > 1)
-        {
-            sb.AppendLine($"Frames = {string.Join(",", e.Frames)}");
-            sb.AppendLine($"Velocidad = {e.Speed.ToString("R", CultureInfo.InvariantCulture)}");
-        }
-        else
-        {
-            sb.AppendLine($"FileNum = {e.FileNum}");
-            sb.AppendLine($"SX = {e.SX}");
-            sb.AppendLine($"SY = {e.SY}");
-            sb.AppendLine($"Ancho = {e.PixelWidth}");
-            sb.AppendLine($"Alto = {e.PixelHeight}");
-        }
-    }
-
     private static void WriteGrhCompact(StringBuilder sb, GrhEntry e)
     {
-        sb.Append($"Grh{e.Grh}=");
+        sb.Append("Grh").Append(e.Grh.ToString(CultureInfo.InvariantCulture)).Append('=');
         if (e.NumFrames > 1)
         {
-            sb.Append(e.NumFrames).Append('-');
-            foreach (var f in e.Frames) sb.Append(f).Append('-');
+            sb.Append(e.NumFrames.ToString(CultureInfo.InvariantCulture)).Append('-');
+            foreach (var f in e.Frames) sb.Append(f.ToString(CultureInfo.InvariantCulture)).Append('-');
             sb.Append(e.Speed.ToString("R", CultureInfo.InvariantCulture)).Append('-');
         }
         else
         {
-            sb.Append("1-").Append(e.FileNum).Append('-')
-              .Append(e.SX).Append('-')
-              .Append(e.SY).Append('-')
-              .Append(e.PixelWidth).Append('-')
-              .Append(e.PixelHeight).Append('-');
+            sb.Append("1-").Append(e.FileNum.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.SX.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.SY.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.PixelWidth.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.PixelHeight.ToString(CultureInfo.InvariantCulture)).Append('-');
         }
         sb.AppendLine();
     }
