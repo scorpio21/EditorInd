@@ -437,19 +437,19 @@ public class ParseTests
     {
         var rec = IndFileReader.Read(P("ataques.ind")).Records[0];
         var body = (int[])rec.Values["Body"];
-        Assert.Equal(200, body[0]);
-        Assert.Equal(27, body[1]);
-        Assert.Equal(0, body[2]);
-        Assert.Equal(200, body[3]);
+        Assert.Equal(20466, body[0]);
+        Assert.Equal(20467, body[1]);
+        Assert.Equal(20469, body[2]);
+        Assert.Equal(20468, body[3]);
         Assert.Equal(0, (short)rec.Values["HeadOffsetX"]);
-        Assert.Equal(160, (short)rec.Values["HeadOffsetY"]);
+        Assert.Equal(0, (short)rec.Values["HeadOffsetY"]);
     }
 
     [Fact]
     public void Cabezas_PrimerRegistro_Valores()
     {
         var rec = IndFileReader.Read(P("cabezas.ind")).Records[0];
-        Assert.Equal(200, (short)rec.Values["Texture"]);
+        Assert.Equal(202, (short)rec.Values["Texture"]);
     }
 
     [Fact]
@@ -460,7 +460,7 @@ public class ParseTests
 }
 ```
 
-Nota: el primer registro de `ataques.ind` (offset 265) es `Body=(200,27,0,200)`, `HeadOffsetX=0`, `HeadOffsetY=160`.
+Nota: el primer registro de `ataques.ind` (offset 265) es `Body=(20466,20467,20469,20468)`, `HeadOffsetX=0`, `HeadOffsetY=0` (verificado byte a byte sobre `K:\Descargas\aaoo\init\ataques.ind`; el patrón `200,27,0,200` está dentro de la cabecera, no en el registro). `cabezas.ind` rec0 `Texture=202`; `cascos.ind` rec0 `Texture=200`.
 
 - [ ] **Step 2: Ejecutar y verificar que fallan**
 
@@ -730,7 +730,7 @@ public class DatTests
 
     [Theory]
     [InlineData("texdefault1.dat", 256, 256, 17, 17, 32)]
-    [InlineData("texdefault2.dat", 2048, 1024, 70, 70, 0)]
+    [InlineData("texdefault2.dat", 2048, 1024, 70, 70, 32)]
     public void TexDefault_Valores(string file, int bw, int bh, int cw, int ch, int bco)
     {
         var data = IndFileReader.Read(P(file));
