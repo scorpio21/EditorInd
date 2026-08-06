@@ -1,6 +1,6 @@
 # IndEditor
 
-Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9). Aplicación de escritorio para Windows (.NET 10, WinForms) con interfaz en español: lee, edita y guarda los archivos de datos del juego con **round-trip byte-exacto**, y permite exportar/importar a un formato de texto legible.
+Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9). Aplicación de escritorio para Windows (.NET 9, WinForms) con interfaz en español: lee, edita y guarda los archivos de datos del juego con **round-trip byte-exacto**, y permite exportar/importar a un formato de texto legible.
 
 ## Características
 
@@ -27,7 +27,7 @@ Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9)
 
 ## Requisitos
 
-- Windows 10/11 (o plataforma compatible con .NET 10 y WinForms).
+- Windows 10/11 (o plataforma compatible con .NET 9 y WinForms).
 - [.NET SDK 10](https://dotnet.microsoft.com/download) para compilar.
 
 ## Compilar y ejecutar

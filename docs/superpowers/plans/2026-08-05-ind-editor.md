@@ -2,15 +2,15 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Construir IndEditor, una aplicación .NET 10 (WinForms) para leer, editar y guardar los archivos binarios `.ind` y `.dat` de Argentum Online, con exportación/importación `.txt`.
+**Goal:** Construir IndEditor, una aplicación .NET 9 (WinForms) para leer, editar y guardar los archivos binarios `.ind` y `.dat` de Argentum Online, con exportación/importación `.txt`.
 
 **Architecture:** Solución con 3 proyectos: `IndLib` (librería de lógica pura: formatos declarativos, lectura/escritura binaria, TXT), `IndEditor` (UI WinForms en español), `IndLib.Tests` (xUnit). La lectura/escritura usa definiciones declarativas de formato (`IndFormat` + `IndField`); la cabecera `tCabecera` se preserva como bytes crudos para round-trip byte-exacto.
 
-**Tech Stack:** .NET 10 (SDK 10.0.100), WinForms (`net10.0-windows`), xUnit, dotnet CLI.
+**Tech Stack:** .NET 9 (SDK 9.0.316), WinForms (`net9.0-windows`), xUnit, dotnet CLI.
 
 ## Global Constraints
 
-- Solo .NET 10 SDK disponible; target: `net10.0-windows` (WinForms), `net10.0` (librería y tests).
+- El usuario pidió C# WinForms (.NET 9) para Windows (NET 10 está en preview); target: `net9.0-windows` (WinForms), `net9.0` (librería y tests).
 - Interfaz y mensajes en español.
 - Round-trip byte-exacto: leer → escribir → los bytes deben ser idénticos al original (todas las pruebas lo verifican).
 - Cabecera `tCabecera` (263 B) preservada como bytes crudos, nunca recalculada.
@@ -39,9 +39,9 @@
 Run (en `K:\Descargas\aaoo\EditorInd`):
 ```bash
 dotnet new sln -n IndEditor
-dotnet new classlib -n IndLib -o src/IndLib --framework net10.0
-dotnet new winforms -n IndEditor -o src/IndEditor --framework net10.0
-dotnet new xunit -n IndLib.Tests -o tests/IndLib.Tests --framework net10.0
+dotnet new classlib -n IndLib -o src/IndLib --framework net9.0
+dotnet new winforms -n IndEditor -o src/IndEditor --framework net9.0
+dotnet new xunit -n IndLib.Tests -o tests/IndLib.Tests --framework net9.0
 dotnet sln add src/IndLib src/IndEditor tests/IndLib.Tests
 dotnet add src/IndEditor reference src/IndLib
 dotnet add tests/IndLib.Tests reference src/IndLib

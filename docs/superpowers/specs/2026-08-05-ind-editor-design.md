@@ -80,11 +80,11 @@ End Type
 
 ## Arquitectura
 
-Solución `IndEditor.sln` en `K:\Descargas\aaoo\IndEditor` con 3 proyectos .NET 10 (SDK 10.0.100 y VS 18 Enterprise disponibles):
+Solución `IndEditor.sln` en `K:\Descargas\aaoo\IndEditor` con 3 proyectos .NET 9 (SDK 9.0.316 disponible):
 
 ```
 IndEditor.sln
-├─ src/IndLib            Class library (net10.0)
+├─ src/IndLib            Class library (net9.0)
 │    ├─ Formats/         Definiciones declarativas de formato por archivo
 │    ├─ Models/          IndField, IndRecord, GrhEntry, IndFileData
 │    ├─ IndFileReader.cs Lectura binaria genérica según formato
@@ -92,10 +92,10 @@ IndEditor.sln
 │    ├─ IndFormatDetector.cs  Detección por nombre de archivo
 │    ├─ TxtExporter.cs   Exportación a texto por bloques
 │    └─ TxtImporter.cs   Importación desde texto
-├─ src/IndEditor          App WinForms (net10.0-windows), UI en español
+├─ src/IndEditor          App WinForms (net9.0-windows), UI en español
 │    ├─ MainForm          DataGridView + menús + barra de estado + drag&drop
 │    └─ Program.cs
-└─ tests/IndLib.Tests     xUnit (net10.0)
+└─ tests/IndLib.Tests     xUnit (net9.0)
 ```
 
 ### Modelo de formato declarativo
@@ -200,7 +200,7 @@ HeadOffsetY = -28
 
 - .NET SDK 10.0.100 instalado.
 - Visual Studio 18 Enterprise (`devenv.exe` en `C:\Program Files\Microsoft Visual Studio\18\Enterprise`).
-- Target: `net10.0-windows` (WinForms), `net10.0` (librería y tests).
+- Target: `net9.0-windows` (WinForms), `net9.0` (librería y tests).
 - Sistema: Windows.
 
 ## Fuera de alcance
