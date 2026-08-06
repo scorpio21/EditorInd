@@ -131,9 +131,35 @@ public static class IndFileReader
     }
 
     private static IndFileData ReadTexDefault(byte[] bytes, IndFormat format, string fileName)
-        => throw new NotImplementedException("Task 5");
-    private static IndFileData ReadMinimap(byte[] bytes, IndFormat format, string fileName, string? graficsPath)
-        => throw new NotImplementedException("Task 5");
+    {
+        var data = new IndFileData { Format = format, FileName = fileName };
+        if (bytes.Length < format.RecordSize)
+            throw new InvalidDataException($"Archivo '{fileName}' demasiado corto.");
+        data.HeaderBytes = Array.Empty<byte>();
+        data.Records.Add(ParseRecord(bytes.AsSpan(0, format.RecordSize), format, 1));
+        data.Count = 1;
+        return data;
+    }
 
-    // ReadTexDefault, ReadMinimap se añaden en Task 5.
+    private static IndFileData ReadMinimap(byte[] bytes, IndFormat format, string fileName, string? graficsPath)
+    {
+        var data = new IndFileData { Format = format, FileName = fileName };
+        if (bytes.Length % 4 != 0)
+            throw new InvalidDataException("minimap.dat con tamaño no múltiplo de 4.");
+        int n = bytes.Length / 4;
+        var active = new List<int>();
+        if (!string.IsNullOrEmpty(graficsPath) && File.Exists(graficsPath))
+            active = GetActiveGrhIndices(File.ReadAllBytes(graficsPath));
+        for (int i = 0; i < n; i++)
+        {
+            uint color = BitConverter.ToUInt32(bytes, i * 4);
+            data.MinimapEntries.Add(new MinimapEntry { Grh = i < active.Count ? active[i] : 0, Color = color });
+        }
+        data.Count = n;
+        if (active.Count != 0 && active.Count != n)
+            data.Warning = $"El nº de colores ({n}) no coincide con los grhs activos de graficos.ind ({active.Count}).";
+        return data;
+    }
+
+    // Todos los branch del reader (FixedRecords, GrhData, TexDefault, Minimap) están implementados.
 }
