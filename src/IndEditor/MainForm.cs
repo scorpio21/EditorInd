@@ -20,6 +20,9 @@ public partial class MainForm : Form
     private readonly ToolStripButton _btnRemove = new("Eliminar fila");
 
     private readonly List<(string Name, ColKind Kind)> _colKinds = new();
+    // _boolRaw[r] = mapa columna -> short crudo original del campo Boolean
+    // (preserva valores no estándar como 0x00FF en round-trip; ver Global Constraints)
+    private readonly List<Dictionary<int, short>> _boolRaw = new();
     private IndFileData? _data;
     private string _currentPath = "";
     private string? _graficsPath;
@@ -164,6 +167,7 @@ public partial class MainForm : Form
     private void ReloadViews()
     {
         _colKinds.Clear();
+        _boolRaw.Clear();
         _grid.Columns.Clear();
         _grid.Rows.Clear();
         _singlePanel.Visible = false;
@@ -201,32 +205,47 @@ public partial class MainForm : Form
         foreach (var rec in _data.Records)
         {
             var cells = new List<object>();
+            var raw = new Dictionary<int, short>();
+            int cellCol = 0;
             foreach (var f in _data.Format.Fields)
             {
                 if (f.Type == IndFieldType.Int32Array)
-                    foreach (var v in (int[])rec.Values[f.Name]) cells.Add(v);
+                {
+                    foreach (var v in (int[])rec.Values[f.Name]) { cells.Add(v); cellCol++; }
+                }
                 else if (f.Type == IndFieldType.ByteArray)
-                    cells.Add(string.Join(",", (byte[])rec.Values[f.Name]));
+                {
+                    cells.Add(string.Join(",", (byte[])rec.Values[f.Name])); cellCol++;
+                }
                 else if (f.Type == IndFieldType.Boolean)
-                    cells.Add(((short)rec.Values[f.Name]) != 0);
+                {
+                    var s = (short)rec.Values[f.Name];
+                    raw[cellCol] = s;
+                    cells.Add(s != 0); cellCol++;
+                }
                 else
-                    cells.Add(rec.Values[f.Name]);
+                {
+                    cells.Add(rec.Values[f.Name]); cellCol++;
+                }
             }
             _grid.Rows.Add(cells.ToArray());
+            _boolRaw.Add(raw);
         }
     }
 
     private void PopulateGrhGrid()
     {
         AddCol("Grh", "Grh", ColKind.Int32);
-        AddCol("NumFrames", "Nº frames", ColKind.Int32);
+        // NumFrames, SX, SY, Ancho, Alto son Int16 en el formato → ColKind.Int16
+        // (validación de rango en la celda; evita wraparound del cast (short) en el writer)
+        AddCol("NumFrames", "Nº frames", ColKind.Int16);
         AddCol("Frames", "Frames", ColKind.IntCsv);
         AddCol("Velocidad", "Velocidad", ColKind.Single);
         AddCol("FileNum", "Archivo", ColKind.Int32);
-        AddCol("SX", "SX", ColKind.Int32);
-        AddCol("SY", "SY", ColKind.Int32);
-        AddCol("Ancho", "Ancho", ColKind.Int32);
-        AddCol("Alto", "Alto", ColKind.Int32);
+        AddCol("SX", "SX", ColKind.Int16);
+        AddCol("SY", "SY", ColKind.Int16);
+        AddCol("Ancho", "Ancho", ColKind.Int16);
+        AddCol("Alto", "Alto", ColKind.Int16);
         foreach (var e in _data!.GrhEntries)
         {
             bool anim = e.HasData && e.NumFrames > 1;
@@ -324,7 +343,13 @@ public partial class MainForm : Form
                 }
                 else if (f.Type == IndFieldType.Boolean)
                 {
-                    rec.Values[f.Name] = (bool)CellValue(r, col) ? (short)-1 : (short)0; col++;
+                    // C1: preservar el short crudo original si la celda no cambió
+                    // (round-trip byte-exacto para valores no estándar como 0x00FF);
+                    // solo normalizar a -1/0 cuando el usuario realmente conmutó la casilla.
+                    var current = (bool)CellValue(r, col);
+                    var raw = _boolRaw[r].TryGetValue(col, out var rv) ? rv : (short)0;
+                    rec.Values[f.Name] = IndValueLogic.ResolveBoolean(current, raw);
+                    col++;
                 }
                 else
                 {
@@ -347,7 +372,12 @@ public partial class MainForm : Form
             e.HasData = e.Grh != 0;
             if (e.NumFrames > 1)
             {
+                // I1: validar NumFrames vs Frames antes de escribir — un desajuste
+                // desincroniza silenciosamente todos los registros siguientes en el archivo.
                 e.Frames = ParseIntCsv(_grid.Rows[r].Cells[2].Value?.ToString());
+                if (e.Frames.Length != e.NumFrames)
+                    throw new InvalidOperationException(
+                        $"Fila {r + 1}: NumFrames = {e.NumFrames} pero hay {e.Frames.Length} frames.");
                 e.Speed = CellFloat(r, 3);
             }
             else
@@ -418,6 +448,7 @@ public partial class MainForm : Form
                     else cells.Add(0);
                 }
                 _grid.Rows.Add(cells.ToArray());
+                _boolRaw.Add(new Dictionary<int, short>()); // fila nueva: Boolean raw 0 por defecto
                 break;
             case IndFormatKind.GrhData:
                 _grid.Rows.Add(0, 0, "", 0f, 0, 0, 0, 0, 0);
@@ -432,7 +463,9 @@ public partial class MainForm : Form
     private void RemoveRow(object? sender, EventArgs e)
     {
         if (_data == null || _grid.SelectedRows.Count == 0) return;
-        _grid.Rows.RemoveAt(_grid.SelectedRows[0].Index);
+        var idx = _grid.SelectedRows[0].Index;
+        _grid.Rows.RemoveAt(idx);
+        _boolRaw.RemoveAt(idx);
         UpdateStatus();
     }
 

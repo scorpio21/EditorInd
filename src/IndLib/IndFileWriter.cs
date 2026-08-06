@@ -58,7 +58,13 @@ public static class IndFileWriter
     {
         w.Write(e.Grh);
         if (!e.HasData) return;
-        w.Write((short)e.NumFrames);
+        // I1: el writer rechaza estado inconsistente (NumFrames != Frames.Length)
+        // como defensa en profundidad — el save-time check en MainForm da el error
+        // de fila, y este guard impide cualquier write corrupto llegue al disco.
+        if (e.NumFrames > 1 && e.Frames.Length != e.NumFrames)
+            throw new InvalidOperationException(
+                $"Grh {e.Grh}: NumFrames = {e.NumFrames} pero hay {e.Frames.Length} frames.");
+        w.Write(AsShort(e.NumFrames, nameof(e.NumFrames), e.Grh));
         if (e.NumFrames > 1)
         {
             foreach (var f in e.Frames) w.Write(f);
@@ -67,11 +73,21 @@ public static class IndFileWriter
         else
         {
             w.Write(e.FileNum);
-            w.Write((short)e.SX);
-            w.Write((short)e.SY);
-            w.Write((short)e.PixelWidth);
-            w.Write((short)e.PixelHeight);
+            w.Write(AsShort(e.SX, nameof(e.SX), e.Grh));
+            w.Write(AsShort(e.SY, nameof(e.SY), e.Grh));
+            w.Write(AsShort(e.PixelWidth, nameof(e.PixelWidth), e.Grh));
+            w.Write(AsShort(e.PixelHeight, nameof(e.PixelHeight), e.Grh));
         }
+    }
+
+    // I2: rechaza wraparound silencioso de Int32 a Int16 en campos del formato
+    // (NumFrames/SX/SY/Ancho/Alto son Int16) — el grid valida con ColKind.Int16,
+    // y este guard protege cualquier otra ruta de escritura.
+    private static short AsShort(int value, string field, int grh)
+    {
+        if (value is < short.MinValue or > short.MaxValue)
+            throw new InvalidOperationException($"Grh {grh}: {field} = {value} está fuera del rango Int16.");
+        return (short)value;
     }
 
     private static void WriteTexDefault(BinaryWriter w, IndFileData data)

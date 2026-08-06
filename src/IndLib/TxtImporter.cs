@@ -17,7 +17,7 @@ public static class TxtImporter
             if (line.Length == 0 || line.StartsWith('#')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
-                current = new IndRecord { Index = int.Parse(line[1..^1], CultureInfo.InvariantCulture) };
+                current = new IndRecord { Index = ParseInt(line[1..^1], lineNo, "[sección]") };
                 if (format.Kind == IndFormatKind.FixedRecords || format.Kind == IndFormatKind.TexDefault)
                     data.Records.Add(current);
                 continue;
@@ -32,7 +32,7 @@ public static class TxtImporter
             {
                 if (key == "Grh")
                 {
-                    grh = new GrhEntry { Grh = int.Parse(value, CultureInfo.InvariantCulture) };
+                    grh = new GrhEntry { Grh = ParseInt(value, lineNo, key) };
                     data.GrhEntries.Add(grh);
                 }
                 else if (grh == null)
@@ -43,14 +43,17 @@ public static class TxtImporter
                 {
                     switch (key)
                     {
-                        case "NumFrames": grh.NumFrames = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Frames": grh.Frames = value.Split(',').Select(v => int.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(); break;
-                        case "Velocidad": grh.Speed = float.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "FileNum": grh.FileNum = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "SX": grh.SX = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "SY": grh.SY = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Ancho": grh.PixelWidth = int.Parse(value, CultureInfo.InvariantCulture); break;
-                        case "Alto": grh.PixelHeight = int.Parse(value, CultureInfo.InvariantCulture); break;
+                        case "NumFrames": grh.NumFrames = ParseInt(value, lineNo, key); break;
+                        case "Frames":
+                            grh.Frames = value.Split(',')
+                                .Select(v => ParseInt(v.Trim(), lineNo, key)).ToArray();
+                            break;
+                        case "Velocidad": grh.Speed = ParseFloat(value, lineNo, key); break;
+                        case "FileNum": grh.FileNum = ParseInt(value, lineNo, key); break;
+                        case "SX": grh.SX = ParseInt(value, lineNo, key); break;
+                        case "SY": grh.SY = ParseInt(value, lineNo, key); break;
+                        case "Ancho": grh.PixelWidth = ParseInt(value, lineNo, key); break;
+                        case "Alto": grh.PixelHeight = ParseInt(value, lineNo, key); break;
                         default: throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
                     }
                 }
@@ -60,7 +63,7 @@ public static class TxtImporter
             if (format.Kind == IndFormatKind.Minimap)
             {
                 if (key == "Color")
-                    data.MinimapEntries.Add(new MinimapEntry { Grh = 0, Color = uint.Parse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture) });
+                    data.MinimapEntries.Add(new MinimapEntry { Grh = 0, Color = ParseUint(value, lineNo, key) });
                 continue;
             }
 
@@ -71,12 +74,17 @@ public static class TxtImporter
             if (dot > 0)
             {
                 var baseName = key[..dot];
-                var idx = int.Parse(key[(dot + 1)..], CultureInfo.InvariantCulture);
-                var field = format.Fields.First(f => f.Name == baseName && f.Type == IndFieldType.Int32Array);
+                var idx = ParseInt(key[(dot + 1)..], lineNo, key);
+                if (idx < 1)
+                    throw new FormatException($"Línea {lineNo}: índice inválido en '{key}'.");
+                var field = format.Fields.FirstOrDefault(f => f.Name == baseName && f.Type == IndFieldType.Int32Array)
+                    ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
+                if (idx > field.Count)
+                    throw new FormatException($"Línea {lineNo}: índice {idx} fuera de rango para '{field.Name}' ({field.Count} elementos).");
                 if (!current.Values.TryGetValue(field.Name, out var existing))
                     existing = new int[field.Count];
                 var arr = (int[])existing;
-                arr[idx - 1] = int.Parse(value, CultureInfo.InvariantCulture);
+                arr[idx - 1] = ParseInt(value, lineNo, key);
                 current.Values[field.Name] = arr;
                 continue;
             }
@@ -84,12 +92,13 @@ public static class TxtImporter
                 ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
             current.Values[f2.Name] = f2.Type switch
             {
-                IndFieldType.Int16 => short.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Int32 => int.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Single => float.Parse(value, CultureInfo.InvariantCulture),
-                IndFieldType.Byte => byte.Parse(value, CultureInfo.InvariantCulture),
+                IndFieldType.Int16 => ParseShort(value, lineNo, key),
+                IndFieldType.Int32 => ParseInt(value, lineNo, key),
+                IndFieldType.Single => ParseFloat(value, lineNo, key),
+                IndFieldType.Byte => ParseByte(value, lineNo, key),
                 IndFieldType.Boolean => (short)(value is "True" or "1" ? -1 : 0),
-                IndFieldType.ByteArray => value.Split(',').Select(v => byte.Parse(v.Trim(), CultureInfo.InvariantCulture)).ToArray(),
+                IndFieldType.ByteArray => value.Split(',')
+                    .Select(v => ParseByte(v.Trim(), lineNo, key)).ToArray(),
                 _ => throw new FormatException($"Línea {lineNo}: tipo no soportado para '{key}'."),
             };
         }
@@ -101,5 +110,42 @@ public static class TxtImporter
             _ => data.Records.Count,
         };
         return data;
+    }
+
+    // I3: todo error numérico/de clave lleva "Línea N" — el spec exige
+    // mensaje con número de línea para TXT inválido (design doc, line 187).
+    private static int ParseInt(string value, int lineNo, string key)
+    {
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static short ParseShort(string value, int lineNo, string key)
+    {
+        if (!short.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static float ParseFloat(string value, int lineNo, string key)
+    {
+        if (!float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static byte ParseByte(string value, int lineNo, string key)
+    {
+        if (!byte.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
+    }
+
+    private static uint ParseUint(string value, int lineNo, string key)
+    {
+        if (!uint.TryParse(value, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v))
+            throw new FormatException($"Línea {lineNo}: valor '{value}' inválido para '{key}'.");
+        return v;
     }
 }
