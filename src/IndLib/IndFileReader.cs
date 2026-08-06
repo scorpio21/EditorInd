@@ -51,7 +51,7 @@ public static class IndFileReader
                 case IndFieldType.Single:
                     rec.Values[f.Name] = BitConverter.ToSingle(s.Slice(off, 4)); off += 4; break;
                 case IndFieldType.Boolean:
-                    rec.Values[f.Name] = BitConverter.ToInt16(s.Slice(off, 2)) != 0; off += 2; break;
+                    rec.Values[f.Name] = BitConverter.ToInt16(s.Slice(off, 2)); off += 2; break;
                 case IndFieldType.Byte:
                     rec.Values[f.Name] = s[off]; off += 1; break;
                 case IndFieldType.Int32Array:

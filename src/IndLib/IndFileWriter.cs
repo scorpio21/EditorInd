@@ -40,7 +40,7 @@ public static class IndFileWriter
                 case IndFieldType.Int16: w.Write((short)rec.Values[f.Name]); break;
                 case IndFieldType.Int32: w.Write((int)rec.Values[f.Name]); break;
                 case IndFieldType.Single: w.Write((float)rec.Values[f.Name]); break;
-                case IndFieldType.Boolean: w.Write((bool)rec.Values[f.Name] ? (short)-1 : (short)0); break;
+                case IndFieldType.Boolean: w.Write((short)rec.Values[f.Name]); break;
                 case IndFieldType.Byte: w.Write((byte)rec.Values[f.Name]); break;
                 case IndFieldType.Int32Array:
                     foreach (var v in (int[])rec.Values[f.Name]) w.Write(v);
