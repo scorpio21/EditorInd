@@ -93,7 +93,9 @@ public static class TxtImporter
                 if (!current.Values.TryGetValue(field.Name, out var existing))
                     existing = new int[field.Count];
                 var arr = (int[])existing;
-                arr[idx - 1] = ParseInt(value, lineNo, key);
+                arr[idx - 1] = field.Type == IndFieldType.Int16Array
+                    ? ParseShort(value, lineNo, key)
+                    : ParseInt(value, lineNo, key);
                 current.Values[field.Name] = arr;
                 continue;
             }

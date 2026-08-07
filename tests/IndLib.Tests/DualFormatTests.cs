@@ -52,6 +52,26 @@ public class DualFormatTests
     }
 
     [Fact]
+    public void Personajes_Aom2018_ImportInt16ArrayFueraDeRango_LanzaErrorLinea()
+    {
+        var data = IndFileReader.Read(A("Personajes.ind"));
+        var txt = "# Variante: Aom2018-Int16\n[1]\nBody.1 = 70000\n";
+        var ex = Assert.Throws<FormatException>(() => TxtImporter.Import(txt, data.Format, data.HeaderBytes));
+        Assert.Contains("Línea", ex.Message);
+        Assert.Contains("Body.1", ex.Message);
+    }
+
+    [Fact]
+    public void Personajes_Aom2018_ImportInt16ArrayEnRango_Ok()
+    {
+        var data = IndFileReader.Read(A("Personajes.ind"));
+        var txt = "# Variante: Aom2018-Int16\n[1]\nBody.1 = 32767\nBody.2 = -32768\nHeadOffsetX = 0\nHeadOffsetY = 0\n";
+        var imported = TxtImporter.Import(txt, data.Format, data.HeaderBytes);
+        Assert.Equal(32767, ((int[])imported.Records[0].Values["Body"])[0]);
+        Assert.Equal(-32768, ((int[])imported.Records[0].Values["Body"])[1]);
+    }
+
+    [Fact]
     public void Aom2018_TxtRoundTripByteExacto()
     {
         var data = IndFileReader.Read(A("Personajes.ind"));
