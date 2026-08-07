@@ -24,6 +24,28 @@ public static class IndFormatCatalog
         new() { Name = "startY", Type = IndFieldType.Int16, Label = "Inicio Y" },
     };
 
+    private static readonly IndField[] IndiceInt16Fields =
+    {
+        new() { Name = "Body", Type = IndFieldType.Int16Array, Count = 4, Label = "Cuerpo" },
+        new() { Name = "HeadOffsetX", Type = IndFieldType.Int16, Label = "Despl. X" },
+        new() { Name = "HeadOffsetY", Type = IndFieldType.Int16, Label = "Despl. Y" },
+    };
+
+    private static readonly IndField[] FxInt16Fields =
+    {
+        new() { Name = "Animacion", Type = IndFieldType.Int16, Label = "Animación" },
+        new() { Name = "offsetX", Type = IndFieldType.Int16, Label = "Offset X" },
+        new() { Name = "offsetY", Type = IndFieldType.Int16, Label = "Offset Y" },
+    };
+
+    private static readonly IndField[] Head4Fields =
+    {
+        new() { Name = "Head0", Type = IndFieldType.Int16, Label = "Cabeza 0" },
+        new() { Name = "Head1", Type = IndFieldType.Int16, Label = "Cabeza 1" },
+        new() { Name = "Head2", Type = IndFieldType.Int16, Label = "Cabeza 2" },
+        new() { Name = "Head3", Type = IndFieldType.Int16, Label = "Cabeza 3" },
+    };
+
     private static readonly IndField[] TexDefaultFields =
     {
         new() { Name = "BitmapWidth", Type = IndFieldType.Int32, Label = "Ancho mapa bits" },
@@ -34,6 +56,24 @@ public static class IndFormatCatalog
         new() { Name = "CharWidth", Type = IndFieldType.ByteArray, Count = 256, Label = "Anchos de carácter" },
     };
 
+    public static IndFormatVariant VariantAom2018Personajes { get; } = new()
+    {
+        Name = "Aom2018-Int16", HeaderSize = 263, CountOffset = 263,
+        Fields = IndiceInt16Fields, RecordSize = 12,
+    };
+
+    public static IndFormatVariant VariantAom2018Fxs { get; } = new()
+    {
+        Name = "Aom2018-Int16", HeaderSize = 263, CountOffset = 263,
+        Fields = FxInt16Fields, RecordSize = 6,
+    };
+
+    public static IndFormatVariant VariantAom2018Cabezas { get; } = new()
+    {
+        Name = "Aom2018-4Head", HeaderSize = 263, CountOffset = 263,
+        Fields = Head4Fields, RecordSize = 8,
+    };
+
     public static IndFormat Ataques { get; } = new()
     {
         Name = "tIndiceAtaque", DisplayName = "Ataques",
@@ -41,6 +81,7 @@ public static class IndFormatCatalog
         Kind = IndFormatKind.FixedRecords,
         HeaderSize = 263, HasCount = true, CountOffset = 263,
         Fields = IndiceFields, RecordSize = 20,
+        Variants = new[] { VariantAom2018Personajes },
     };
 
     public static IndFormat Personajes { get; } = new()
@@ -50,6 +91,7 @@ public static class IndFormatCatalog
         Kind = IndFormatKind.FixedRecords,
         HeaderSize = 263, HasCount = true, CountOffset = 263,
         Fields = IndiceFields, RecordSize = 20,
+        Variants = new[] { VariantAom2018Personajes },
     };
 
     public static IndFormat Fxs { get; } = new()
@@ -59,6 +101,7 @@ public static class IndFormatCatalog
         Kind = IndFormatKind.FixedRecords,
         HeaderSize = 263, HasCount = true, CountOffset = 263,
         Fields = FxFields, RecordSize = 10,
+        Variants = new[] { VariantAom2018Fxs },
     };
 
     public static IndFormat Cabezas { get; } = new()
@@ -68,6 +111,7 @@ public static class IndFormatCatalog
         Kind = IndFormatKind.FixedRecords,
         HeaderSize = 0, HasCount = true, CountOffset = 0,
         Fields = HeadFields, RecordSize = 6,
+        Variants = new[] { VariantAom2018Cabezas },
     };
 
     public static IndFormat Cascos { get; } = new()
@@ -77,6 +121,7 @@ public static class IndFormatCatalog
         Kind = IndFormatKind.FixedRecords,
         HeaderSize = 0, HasCount = true, CountOffset = 0,
         Fields = HeadFields, RecordSize = 6,
+        Variants = new[] { VariantAom2018Cabezas },
     };
 
     public static IndFormat Grafics { get; } = new()

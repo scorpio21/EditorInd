@@ -165,7 +165,8 @@ public partial class MainForm : Form
 
     private void PopulateFixedGrid()
     {
-        foreach (var f in _data!.Format.Fields)
+        var fields = _data!.Variant?.Fields ?? _data.Format.Fields;
+        foreach (var f in fields)
         {
             switch (f.Type)
             {
@@ -174,6 +175,9 @@ public partial class MainForm : Form
                 case IndFieldType.Single: AddCol(f.Name, f.Label, ColKind.Single); break;
                 case IndFieldType.Boolean: AddCol(f.Name, f.Label, ColKind.Bool); break;
                 case IndFieldType.Byte: AddCol(f.Name, f.Label, ColKind.Byte); break;
+                case IndFieldType.Int16Array:
+                    for (int j = 0; j < f.Count; j++) AddCol($"{f.Name}.{j + 1}", $"{f.Label} {j + 1}", ColKind.Int16);
+                    break;
                 case IndFieldType.Int32Array:
                     for (int j = 0; j < f.Count; j++) AddCol($"{f.Name}.{j + 1}", $"{f.Label} {j + 1}", ColKind.Int32);
                     break;
@@ -187,9 +191,9 @@ public partial class MainForm : Form
             var cells = new List<object>();
             var raw = new Dictionary<int, short>();
             int cellCol = 0;
-            foreach (var f in _data.Format.Fields)
+            foreach (var f in fields)
             {
-                if (f.Type == IndFieldType.Int32Array)
+                if (f.Type is IndFieldType.Int32Array or IndFieldType.Int16Array)
                 {
                     foreach (var v in (int[])rec.Values[f.Name]) { cells.Add(v); cellCol++; }
                 }
@@ -309,9 +313,10 @@ public partial class MainForm : Form
         {
             var rec = new IndRecord { Index = r + 1 };
             int col = 0;
-            foreach (var f in _data!.Format.Fields)
+            var fields = _data!.Variant?.Fields ?? _data.Format.Fields;
+            foreach (var f in fields)
             {
-                if (f.Type == IndFieldType.Int32Array)
+                if (f.Type is IndFieldType.Int32Array or IndFieldType.Int16Array)
                 {
                     var arr = new int[f.Count];
                     for (int j = 0; j < f.Count; j++) { arr[j] = CellInt(r, col); col++; }
@@ -419,9 +424,10 @@ public partial class MainForm : Form
             case IndFormatKind.FixedRecords:
             case IndFormatKind.TexDefault:
                 var cells = new List<object>();
-                foreach (var f in _data.Format.Fields)
+                var fields = _data.Variant?.Fields ?? _data.Format.Fields;
+                foreach (var f in fields)
                 {
-                    if (f.Type == IndFieldType.Int32Array)
+                    if (f.Type is IndFieldType.Int32Array or IndFieldType.Int16Array)
                         for (int j = 0; j < f.Count; j++) cells.Add(0);
                     else if (f.Type == IndFieldType.ByteArray) cells.Add("");
                     else if (f.Type == IndFieldType.Boolean) cells.Add(false);
@@ -451,6 +457,30 @@ public partial class MainForm : Form
 
     // ---------- TXT ----------
 
+    private enum TxtFormatChoice { Current, Desinddat }
+
+    private TxtFormatChoice? ChooseTxtFormat()
+    {
+        using var dlg = new Form
+        {
+            Text = "Formato de exportación",
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+        };
+        dlg.Width = 320; dlg.Height = 150;
+        var rbCurrent = new RadioButton { Text = "Formato actual", Left = 15, Top = 15, AutoSize = true, Checked = true };
+        var rbDesinddat = new RadioButton { Text = "Formato DESINDDAT (AO clásico)", Left = 15, Top = 42, AutoSize = true };
+        var btnOk = new Button { Text = "Aceptar", DialogResult = DialogResult.OK, Left = 110, Top = 80, Width = 85 };
+        var btnCancel = new Button { Text = "Cancelar", DialogResult = DialogResult.Cancel, Left = 205, Top = 80, Width = 85 };
+        dlg.Controls.AddRange(new Control[] { rbCurrent, rbDesinddat, btnOk, btnCancel });
+        dlg.AcceptButton = btnOk;
+        dlg.CancelButton = btnCancel;
+        if (dlg.ShowDialog(this) != DialogResult.OK) return null;
+        return rbDesinddat.Checked ? TxtFormatChoice.Desinddat : TxtFormatChoice.Current;
+    }
+
     private void ExportTxt(object? sender, EventArgs e)
     {
         if (_data == null) return;
@@ -459,7 +489,18 @@ public partial class MainForm : Form
         try
         {
             ApplyEdits();
-            File.WriteAllText(dlg.FileName, TxtExporter.Export(_data));
+            string txt;
+            if (_data.Format.Kind == IndFormatKind.FixedRecords)
+            {
+                var choice = ChooseTxtFormat();
+                if (choice == null) return;
+                txt = choice == TxtFormatChoice.Desinddat ? TxtExporter.ExportDesinddat(_data) : TxtExporter.Export(_data);
+            }
+            else
+            {
+                txt = TxtExporter.Export(_data);
+            }
+            File.WriteAllText(dlg.FileName, txt);
         }
         catch (Exception ex)
         {
@@ -518,7 +559,7 @@ public partial class MainForm : Form
     private void UpdateStatus()
     {
         _lblFile.Text = string.IsNullOrEmpty(_currentPath) ? "Sin archivo" : _currentPath;
-        _lblFormat.Text = _data?.Format.DisplayName ?? "";
+        _lblFormat.Text = _data == null ? "" : _data.Variant == null ? _data.Format.DisplayName : $"{_data.Format.DisplayName} ({_data.Variant.Name})";
         _lblCount.Text = _data == null ? "" : $"Registros: {_data.Count}";
         _lblSize.Text = _data == null ? "" : $"{(_currentPath.Length > 0 && File.Exists(_currentPath) ? new FileInfo(_currentPath).Length : 0)} bytes";
     }

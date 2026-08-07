@@ -1,6 +1,6 @@
 # IndEditor
 
-Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9). Aplicación de escritorio para Windows (.NET 9, WinForms) con interfaz en español: lee, edita y guarda los archivos de datos del juego con **round-trip byte-exacto**, y permite exportar/importar a un formato de texto legible.
+Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mods Aodrag9 y Aom2018). Aplicación de escritorio para Windows (.NET 9, WinForms) con interfaz en español: lee, edita y guarda los archivos de datos del juego con **round-trip byte-exacto**, y permite exportar/importar a un formato de texto legible. Soporta las dos variantes binarias de registro —Int32 (Aodrag9) e Int16 (Aom2018)— con **detección automática** al abrir el archivo.
 
 ## Características
 
@@ -9,6 +9,8 @@ Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9)
 - **Copia de seguridad automática** (`.bak`) antes de guardar.
 - **Exportar a TXT** legible y **reimportar** desde TXT.
 - **Detector de formato** automático por nombre de archivo (insensible a mayúsculas).
+- **Detección automática de variante binaria**: distingue la variante Int32 (Aodrag9) de la Int16 (Aom2018) al cargar y la conserva al guardar, también vía TXT.
+- **Export TXT estilo DESINDDAT**: exportación en el formato `[INIT]`/`NumXXX=`/`[BodyN]`/`WalkN=` del indexador clásico de Argentum Online.
 - **Validación de celdas** con mensajes de error en español, incluido el número de línea en la importación de TXT.
 - **Arrastrar y soltar** (drag & drop) para abrir archivos.
 - **Guards de integridad** que impiden guardar archivos corruptos (conteo de frames, rangos de 16 bits).
@@ -24,6 +26,8 @@ Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mod Aodrag9)
 | Gráficos (`GrhData`) | `graficos.ind` | Variable: estático o animación (`NumFrames`, `Frames`, `Velocidad`) |
 | Fuentes (`texdefault`) | `texdefault1.dat` … `texdefault3.dat` | Cabecera VFH (273 B, un registro) |
 | Minimapa | `minimap.dat` | Colores AARRGGBB |
+
+> **Nota:** los formatos de registros fijos (`ataques.ind`, `personajes.ind`, `fxs.ind`, `cabezas.ind`, `cascos.ind`) existen en dos variantes binarias: **Int32** (Aodrag9, la moderna) e **Int16** (Aom2018, la clásica). La variante se detecta automáticamente al cargar y se conserva al guardar.
 
 ## Requisitos
 
@@ -47,7 +51,7 @@ También puedes abrir la solución `IndEditor.sln` en Visual Studio 2022+ y ejec
    - Añadir/eliminar filas con la barra de herramientas.
    - Validación en vivo: un valor inválido se rechaza con un aviso.
 3. **Guardar**: `Archivo → Guardar` (Ctrl+S). Se ofrece crear una copia de seguridad `.bak`. *Guardar como…* permite elegir otro destino.
-4. **TXT**: `Archivo → Exportar TXT…` para exportar; `Importar TXT…` para reimportar (los errores indican el número de línea).
+4. **TXT**: `Archivo → Exportar TXT…` para exportar; `Importar TXT…` para reimportar (los errores indican el número de línea). En los formatos de registros fijos la exportación ofrece un selector entre el **formato actual** (el estándar de IndEditor) y el **formato DESINDDAT** (AO clásico).
 
 ### Formato TXT
 
@@ -62,6 +66,25 @@ Body.4 = 20468
 HeadOffsetX = 0
 HeadOffsetY = 0
 ```
+
+### Formato DESINDDAT
+
+La exportación en formato DESINDDAT reproduce el estilo del indexador clásico de Argentum Online, con una sección `[INIT]` que indica el número de registros (`NumBodies=`, `NumAtaques=`, `NumFxs=`, `NumHeads=`, `NumCascos=` según el archivo) y una sección `[BodyN]` / `[FXn]` / `[HeadN]` / `[CascoN]` por registro:
+
+```text
+[INIT]
+NumBodies=1
+
+[Body1]
+Walk1=20466
+Walk2=20467
+Walk3=20469
+Walk4=20468
+HeadOffsetX=0
+HeadOffsetY=0
+```
+
+Está disponible para los formatos de registros fijos; `graficos.ind`, `texdefault*.dat` y `minimap.dat` se exportan siempre en el formato actual.
 
 ## Arquitectura
 
@@ -85,7 +108,7 @@ La librería `IndLib` es independiente de la UI y cubre toda la lógica de forma
 dotnet test tests/IndLib.Tests
 ```
 
-La suite incluye 50 pruebas: detección de formatos, parseo contra archivos reales, round-trip byte-exacto (10 archivos), export/import TXT y regresiones de integridad.
+La suite incluye 63 pruebas: detección de formatos, parseo contra archivos reales, round-trip byte-exacto (10 archivos), export/import TXT y regresiones de integridad.
 
 ## Licencia
 

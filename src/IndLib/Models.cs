@@ -1,6 +1,6 @@
 namespace IndLib;
 
-public enum IndFieldType { Int16, Int32, Single, Boolean, Byte, Int32Array, ByteArray }
+public enum IndFieldType { Int16, Int32, Single, Boolean, Byte, Int16Array, Int32Array, ByteArray }
 
 public sealed class IndField
 {
@@ -11,6 +11,15 @@ public sealed class IndField
 }
 
 public enum IndFormatKind { FixedRecords, GrhData, TexDefault, Minimap }
+
+public sealed class IndFormatVariant
+{
+    public string Name { get; init; } = "";
+    public int HeaderSize { get; init; }
+    public int CountOffset { get; init; }
+    public IndField[] Fields { get; init; } = Array.Empty<IndField>();
+    public int RecordSize { get; init; }
+}
 
 public sealed class IndFormat
 {
@@ -24,6 +33,7 @@ public sealed class IndFormat
     public IndField[] Fields { get; init; } = Array.Empty<IndField>();
     public int RecordSize { get; init; }
     public bool RequiresGrafics { get; init; }
+    public IndFormatVariant[] Variants { get; init; } = Array.Empty<IndFormatVariant>();
 }
 
 public sealed class IndRecord
@@ -63,4 +73,5 @@ public sealed class IndFileData
     public int GrhCount { get; set; }
     public List<MinimapEntry> MinimapEntries { get; } = new();
     public string Warning { get; set; } = "";
+    public IndFormatVariant? Variant { get; set; }
 }

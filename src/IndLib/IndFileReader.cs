@@ -20,27 +20,48 @@ public static class IndFileReader
 
     private static IndFileData ReadFixedRecords(byte[] bytes, IndFormat format, string fileName)
     {
-        var data = new IndFileData { Format = format, FileName = fileName };
-        if (bytes.Length < format.CountOffset + 2)
+        var variant = DetectVariant(bytes, format);
+        var headerSize = variant?.HeaderSize ?? format.HeaderSize;
+        var countOffset = variant?.CountOffset ?? format.CountOffset;
+        var recordSize = variant?.RecordSize ?? format.RecordSize;
+        var fields = variant?.Fields ?? format.Fields;
+        var data = new IndFileData { Format = format, FileName = fileName, Variant = variant };
+        if (bytes.Length < countOffset + 2)
             throw new InvalidDataException($"Archivo '{fileName}' demasiado corto.");
-        data.HeaderBytes = bytes.AsSpan(0, format.HeaderSize).ToArray();
-        data.Count = BitConverter.ToInt16(bytes, format.CountOffset);
-        int start = format.CountOffset + 2;
+        data.HeaderBytes = bytes.AsSpan(0, headerSize).ToArray();
+        data.Count = BitConverter.ToInt16(bytes, countOffset);
+        int start = countOffset + 2;
         for (int i = 0; i < data.Count; i++)
         {
-            int off = start + i * format.RecordSize;
-            if (off + format.RecordSize > bytes.Length)
+            int off = start + i * recordSize;
+            if (off + recordSize > bytes.Length)
                 throw new InvalidDataException($"Archivo '{fileName}' truncado: falta el registro {i + 1}.");
-            data.Records.Add(ParseRecord(bytes.AsSpan(off, format.RecordSize), format, i + 1));
+            data.Records.Add(ParseRecord(bytes.AsSpan(off, recordSize), fields, i + 1));
         }
         return data;
     }
 
-    private static IndRecord ParseRecord(ReadOnlySpan<byte> s, IndFormat format, int index)
+    private static IndFormatVariant? DetectVariant(byte[] bytes, IndFormat format)
+    {
+        if (Matches(bytes, format.CountOffset, format.RecordSize)) return null;
+        foreach (var v in format.Variants)
+            if (Matches(bytes, v.CountOffset, v.RecordSize)) return v;
+        return null;
+    }
+
+    private static bool Matches(byte[] bytes, int countOffset, int recordSize)
+    {
+        if (bytes.Length < countOffset + 2) return false;
+        int count = BitConverter.ToInt16(bytes, countOffset);
+        if (count < 0) return false;
+        return bytes.Length == countOffset + 2 + (long)count * recordSize;
+    }
+
+    private static IndRecord ParseRecord(ReadOnlySpan<byte> s, IndField[] fields, int index)
     {
         var rec = new IndRecord { Index = index };
         int off = 0;
-        foreach (var f in format.Fields)
+        foreach (var f in fields)
         {
             switch (f.Type)
             {
@@ -54,6 +75,12 @@ public static class IndFileReader
                     rec.Values[f.Name] = BitConverter.ToInt16(s.Slice(off, 2)); off += 2; break;
                 case IndFieldType.Byte:
                     rec.Values[f.Name] = s[off]; off += 1; break;
+                case IndFieldType.Int16Array:
+                    var i16arr = new int[f.Count];
+                    for (int j = 0; j < f.Count; j++) i16arr[j] = BitConverter.ToInt16(s.Slice(off + j * 2, 2));
+                    off += f.Count * 2;
+                    rec.Values[f.Name] = i16arr;
+                    break;
                 case IndFieldType.Int32Array:
                     var arr = new int[f.Count];
                     for (int j = 0; j < f.Count; j++) arr[j] = BitConverter.ToInt32(s.Slice(off + j * 4, 4));
@@ -136,7 +163,7 @@ public static class IndFileReader
         if (bytes.Length < format.RecordSize)
             throw new InvalidDataException($"Archivo '{fileName}' demasiado corto.");
         data.HeaderBytes = Array.Empty<byte>();
-        data.Records.Add(ParseRecord(bytes.AsSpan(0, format.RecordSize), format, 1));
+        data.Records.Add(ParseRecord(bytes.AsSpan(0, format.RecordSize), format.Fields, 1));
         data.Count = 1;
         return data;
     }
