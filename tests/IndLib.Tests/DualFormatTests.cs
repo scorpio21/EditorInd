@@ -59,4 +59,68 @@ public class DualFormatTests
         var imported = TxtImporter.Import(txt, data.Format, data.HeaderBytes);
         Assert.Equal(IndFileWriter.ToBytes(data), IndFileWriter.ToBytes(imported));
     }
+
+    [Fact]
+    public void Personajes_Aom2018_ExportDesinddat()
+    {
+        var data = IndFileReader.Read(A("Personajes.ind"));
+        var txt = TxtExporter.ExportDesinddat(data);
+        Assert.Contains("[INIT]", txt);
+        Assert.Contains("NumBodies=660", txt);
+        Assert.Contains("[Body1]", txt);
+        Assert.Contains("Walk1=4582", txt);
+        Assert.Contains("Walk2=4584", txt);
+        Assert.Contains("Walk3=4581", txt);
+        Assert.Contains("Walk4=4583", txt);
+        Assert.Contains("HeadOffsetX=0", txt);
+        Assert.Contains("HeadOffsetY=-38", txt);
+    }
+
+    [Fact]
+    public void Personajes_Aodrag9_ExportDesinddat()
+    {
+        var data = IndFileReader.Read(I("personajes.ind"));
+        var txt = TxtExporter.ExportDesinddat(data);
+        Assert.Contains("NumBodies=470", txt);
+        Assert.Contains("[Body1]", txt);
+        var rec = data.Records[0];
+        var body = (int[])rec.Values["Body"];
+        Assert.Contains($"Walk1={body[0]}", txt);
+    }
+
+    [Fact]
+    public void Cabezas_Aodrag9_ExportDesinddat_Mapea3a4()
+    {
+        var data = IndFileReader.Read(I("cabezas.ind"));
+        var txt = TxtExporter.ExportDesinddat(data);
+        Assert.Contains("NumHeads=654", txt);
+        Assert.Contains("[Head1]", txt);
+        var rec = data.Records[0];
+        Assert.Contains($"Head0={(short)rec.Values["Texture"]}", txt);
+        Assert.Contains($"Head1={(short)rec.Values["startX"]}", txt);
+        Assert.Contains($"Head2={(short)rec.Values["startY"]}", txt);
+        Assert.Contains("Head3=0", txt);
+    }
+
+    [Fact]
+    public void Cabezas_Aom2018_ExportDesinddat()
+    {
+        var data = IndFileReader.Read(A("Cabezas.ind"));
+        var txt = TxtExporter.ExportDesinddat(data);
+        Assert.Contains("NumHeads=831", txt);
+        Assert.Contains("[Head1]", txt);
+        var rec = data.Records[0];
+        Assert.Contains($"Head0={(short)rec.Values["Head0"]}", txt);
+    }
+
+    [Fact]
+    public void Fxs_Aodrag9_ExportDesinddat()
+    {
+        var data = IndFileReader.Read(I("fxs.ind"));
+        var txt = TxtExporter.ExportDesinddat(data);
+        Assert.Contains("NumFxs=59", txt);
+        Assert.Contains("[FX1]", txt);
+        Assert.Contains($"Animacion={Convert.ToInt32(data.Records[0].Values["Animacion"])}", txt);
+        Assert.Contains($"OffsetX={(short)data.Records[0].Values["offsetX"]}", txt);
+    }
 }
