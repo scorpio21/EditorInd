@@ -11,7 +11,7 @@ public static class IndFileWriter
             case IndFormatKind.FixedRecords:
                 w.Write(data.HeaderBytes);
                 w.Write((short)data.Records.Count);
-                foreach (var rec in data.Records) WriteRecord(w, data.Format, rec);
+                foreach (var rec in data.Records) WriteRecord(w, data.Variant?.Fields ?? data.Format.Fields, rec);
                 break;
             case IndFormatKind.GrhData:
                 w.Write(data.HeaderBytes);
@@ -31,9 +31,9 @@ public static class IndFileWriter
 
     public static void Save(IndFileData data, string path) => File.WriteAllBytes(path, ToBytes(data));
 
-    private static void WriteRecord(BinaryWriter w, IndFormat format, IndRecord rec)
+    private static void WriteRecord(BinaryWriter w, IndField[] fields, IndRecord rec)
     {
-        foreach (var f in format.Fields)
+        foreach (var f in fields)
         {
             switch (f.Type)
             {
@@ -42,6 +42,9 @@ public static class IndFileWriter
                 case IndFieldType.Single: w.Write((float)rec.Values[f.Name]); break;
                 case IndFieldType.Boolean: w.Write((short)rec.Values[f.Name]); break;
                 case IndFieldType.Byte: w.Write((byte)rec.Values[f.Name]); break;
+                case IndFieldType.Int16Array:
+                    foreach (var v in (int[])rec.Values[f.Name]) w.Write((short)v);
+                    break;
                 case IndFieldType.Int32Array:
                     foreach (var v in (int[])rec.Values[f.Name]) w.Write(v);
                     break;

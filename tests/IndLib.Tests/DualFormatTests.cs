@@ -38,4 +38,16 @@ public class DualFormatTests
         Assert.Equal(831, data.Count);
         Assert.Equal(4, data.Variant.Fields.Length);
     }
+
+    [Theory]
+    [InlineData("Personajes.ind")]
+    [InlineData("Cabezas.ind")]
+    [InlineData("Cascos.ind")]
+    [InlineData("Fxs.ind")]
+    public void Aom2018_RoundTripByteExacto(string file)
+    {
+        var original = File.ReadAllBytes(A(file));
+        var data = IndFileReader.Read(A(file));
+        Assert.Equal(original, IndFileWriter.ToBytes(data));
+    }
 }
