@@ -8,9 +8,12 @@ public static class TxtExporter
     public static string Export(IndFileData data)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("# IndEditor v1.0");
-        sb.AppendLine($"# Archivo: {data.FileName}");
-        sb.AppendLine($"# Formato: {data.Format.Name}");
+        if (data.Format.Kind != IndFormatKind.GrhData)
+        {
+            sb.AppendLine("# IndEditor v1.0");
+            sb.AppendLine($"# Archivo: {data.FileName}");
+            sb.AppendLine($"# Formato: {data.Format.Name}");
+        }
         switch (data.Format.Kind)
         {
             case IndFormatKind.FixedRecords:
@@ -23,12 +26,15 @@ public static class TxtExporter
                 }
                 break;
             case IndFormatKind.GrhData:
-                sb.AppendLine($"# Entradas: {data.GrhEntries.Count}");
-                for (int i = 0; i < data.GrhEntries.Count; i++)
+                sb.AppendLine("'Graficos.ind desindexado con IndEditor");
+                sb.AppendLine($"'{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine();
+                sb.AppendLine("[Graphics]");
+                foreach (var e in data.GrhEntries)
                 {
+                    if (!e.HasData) continue;
                     sb.AppendLine();
-                    sb.AppendLine($"[{i + 1}]");
-                    WriteGrhEntry(sb, data.GrhEntries[i]);
+                    WriteGrhCompact(sb, e);
                 }
                 break;
             case IndFormatKind.TexDefault:
@@ -79,23 +85,23 @@ public static class TxtExporter
         }
     }
 
-    private static void WriteGrhEntry(StringBuilder sb, GrhEntry e)
+    private static void WriteGrhCompact(StringBuilder sb, GrhEntry e)
     {
-        sb.AppendLine($"Grh = {e.Grh}");
-        if (!e.HasData) return;
-        sb.AppendLine($"NumFrames = {e.NumFrames}");
+        sb.Append("Grh").Append(e.Grh.ToString(CultureInfo.InvariantCulture)).Append('=');
         if (e.NumFrames > 1)
         {
-            sb.AppendLine($"Frames = {string.Join(",", e.Frames)}");
-            sb.AppendLine($"Velocidad = {e.Speed.ToString("R", CultureInfo.InvariantCulture)}");
+            sb.Append(e.NumFrames.ToString(CultureInfo.InvariantCulture)).Append('-');
+            foreach (var f in e.Frames) sb.Append(f.ToString(CultureInfo.InvariantCulture)).Append('-');
+            sb.Append(e.Speed.ToString("R", CultureInfo.InvariantCulture)).Append('-');
         }
         else
         {
-            sb.AppendLine($"FileNum = {e.FileNum}");
-            sb.AppendLine($"SX = {e.SX}");
-            sb.AppendLine($"SY = {e.SY}");
-            sb.AppendLine($"Ancho = {e.PixelWidth}");
-            sb.AppendLine($"Alto = {e.PixelHeight}");
+            sb.Append("1-").Append(e.FileNum.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.SX.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.SY.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.PixelWidth.ToString(CultureInfo.InvariantCulture)).Append('-')
+              .Append(e.PixelHeight.ToString(CultureInfo.InvariantCulture)).Append('-');
         }
+        sb.AppendLine();
     }
 }
