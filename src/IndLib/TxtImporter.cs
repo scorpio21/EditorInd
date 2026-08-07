@@ -8,13 +8,21 @@ public static class TxtImporter
     {
         var data = new IndFileData { Format = format, FileName = "", HeaderBytes = headerBytes };
         var lines = text.Split('\n');
+        IndFormatVariant? variant = null;
         IndRecord? current = null;
         GrhEntry? grh = null;
         for (int lineNo = 1; lineNo <= lines.Length; lineNo++)
         {
             var raw = lines[lineNo - 1];
             var line = raw.TrimEnd('\r').Trim();
-            if (line.Length == 0 || line.StartsWith('#')) continue;
+            if (line.Length == 0) continue;
+            if (line.StartsWith("# Variante:", StringComparison.OrdinalIgnoreCase))
+            {
+                var vname = line["# Variante:".Length..].Trim();
+                variant = format.Variants.FirstOrDefault(v => v.Name.Equals(vname, StringComparison.OrdinalIgnoreCase));
+                continue;
+            }
+            if (line.StartsWith('#')) continue;
             if (line.StartsWith('[') && line.EndsWith(']'))
             {
                 current = new IndRecord { Index = ParseInt(line[1..^1], lineNo, "[sección]") };
@@ -70,6 +78,7 @@ public static class TxtImporter
             // FixedRecords / TexDefault
             if (current == null)
                 throw new FormatException($"Línea {lineNo}: valor '{key}' antes de la sección [n].");
+            var fields = variant?.Fields ?? format.Fields;
             var dot = key.LastIndexOf('.');
             if (dot > 0)
             {
@@ -77,7 +86,7 @@ public static class TxtImporter
                 var idx = ParseInt(key[(dot + 1)..], lineNo, key);
                 if (idx < 1)
                     throw new FormatException($"Línea {lineNo}: índice inválido en '{key}'.");
-                var field = format.Fields.FirstOrDefault(f => f.Name == baseName && f.Type == IndFieldType.Int32Array)
+                var field = fields.FirstOrDefault(f => f.Name == baseName && f.Type is IndFieldType.Int32Array or IndFieldType.Int16Array)
                     ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
                 if (idx > field.Count)
                     throw new FormatException($"Línea {lineNo}: índice {idx} fuera de rango para '{field.Name}' ({field.Count} elementos).");
@@ -88,7 +97,7 @@ public static class TxtImporter
                 current.Values[field.Name] = arr;
                 continue;
             }
-            var f2 = format.Fields.FirstOrDefault(f => f.Name == key)
+            var f2 = fields.FirstOrDefault(f => f.Name == key)
                 ?? throw new FormatException($"Línea {lineNo}: campo desconocido '{key}'.");
             current.Values[f2.Name] = f2.Type switch
             {
@@ -109,6 +118,7 @@ public static class TxtImporter
             IndFormatKind.Minimap => data.MinimapEntries.Count,
             _ => data.Records.Count,
         };
+        data.Variant = variant;
         return data;
     }
 

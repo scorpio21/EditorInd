@@ -50,4 +50,13 @@ public class DualFormatTests
         var data = IndFileReader.Read(A(file));
         Assert.Equal(original, IndFileWriter.ToBytes(data));
     }
+
+    [Fact]
+    public void Aom2018_TxtRoundTripByteExacto()
+    {
+        var data = IndFileReader.Read(A("Personajes.ind"));
+        var txt = TxtExporter.Export(data);
+        var imported = TxtImporter.Import(txt, data.Format, data.HeaderBytes);
+        Assert.Equal(IndFileWriter.ToBytes(data), IndFileWriter.ToBytes(imported));
+    }
 }

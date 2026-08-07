@@ -15,11 +15,13 @@ public static class TxtExporter
         {
             case IndFormatKind.FixedRecords:
                 sb.AppendLine($"# Registros: {data.Records.Count}");
+                sb.AppendLine($"# Variante: {data.Variant?.Name ?? "default"}");
+                var fields = data.Variant?.Fields ?? data.Format.Fields;
                 foreach (var rec in data.Records)
                 {
                     sb.AppendLine();
                     sb.AppendLine($"[{rec.Index}]");
-                    WriteRecord(sb, data.Format, rec);
+                    WriteRecord(sb, fields, rec);
                 }
                 break;
             case IndFormatKind.GrhData:
@@ -34,7 +36,7 @@ public static class TxtExporter
             case IndFormatKind.TexDefault:
                 sb.AppendLine();
                 sb.AppendLine("[1]");
-                WriteRecord(sb, data.Format, data.Records[0]);
+                WriteRecord(sb, data.Format.Fields, data.Records[0]);
                 break;
             case IndFormatKind.Minimap:
                 sb.AppendLine($"# Grhs: {data.MinimapEntries.Count}");
@@ -50,11 +52,11 @@ public static class TxtExporter
         return sb.ToString();
     }
 
-    private static void WriteRecord(StringBuilder sb, IndFormat format, IndRecord rec)
+    private static void WriteRecord(StringBuilder sb, IndField[] fields, IndRecord rec)
     {
-        foreach (var f in format.Fields)
+        foreach (var f in fields)
         {
-            if (f.Type == IndFieldType.Int32Array)
+            if (f.Type == IndFieldType.Int32Array || f.Type == IndFieldType.Int16Array)
             {
                 var arr = (int[])rec.Values[f.Name];
                 for (int j = 0; j < arr.Length; j++)
