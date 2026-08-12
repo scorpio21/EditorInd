@@ -128,6 +128,8 @@ public partial class MainForm : Form
         _menu.Items.Add(view);
         
         var help = new ToolStripMenuItem("&Ayuda");
+        help.DropDownItems.Add(Item("&Manual de uso", ShowUserManual));
+        help.DropDownItems.Add(new ToolStripSeparator());
         help.DropDownItems.Add(Item("&Acerca de...", About));
         _menu.Items.Add(help);
         _menu.Dock = DockStyle.Top;
@@ -957,11 +959,15 @@ public partial class MainForm : Form
         _lblSize.Text = _data == null ? "" : $"{(_currentPath.Length > 0 && File.Exists(_currentPath) ? new FileInfo(_currentPath).Length : 0)} bytes";
     }
 
+    private void ShowUserManual(object? sender, EventArgs e)
+    {
+        using var manual = new UserManualForm();
+        manual.ShowDialog(this);
+    }
+
     private void About(object? sender, EventArgs e)
     {
-        MessageBox.Show(this,
-            "IndEditor v1.0\nEditor de archivos .ind/.dat de Argentum Online.\n\nLee, edita, guarda (con copia .bak) y exporta/importa TXT.",
-            "Acerca de IndEditor", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show(this, "IndEditor — Editor de archivos .ind/.dat\n\nVersión 1.0", "Acerca de", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     // Añadir en Task 9: ShowSingleRecordView / ReadSingleFromUi
