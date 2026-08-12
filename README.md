@@ -1,21 +1,33 @@
 # IndEditor
 
-Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mods Aodrag9 y Aom2018). Aplicación de escritorio para Windows (.NET 9, WinForms) con interfaz en español: lee, edita y guarda los archivos de datos del juego con **round-trip byte-exacto**, y permite exportar/importar a un formato de texto legible. Soporta las dos variantes binarias de registro —Int32 (Aodrag9) e Int16 (Aom2018)— con **detección automática** al abrir el archivo.
+<div align="center">
 
-## Características
+![IndEditor](img/ico/Ao.ico)
 
-- **Edición en cuadrícula** de todos los archivos de datos principales del juego.
-- **Round-trip byte-exacto**: al abrir y guardar sin modificar nada, el archivo resultante es idéntico byte a byte al original (la cabecera `tCabecera` de 263 bytes se preserva intacta).
-- **Copia de seguridad automática** (`.bak`) antes de guardar.
-- **Exportar a TXT** legible y **reimportar** desde TXT.
-- **Detector de formato** automático por nombre de archivo (insensible a mayúsculas).
-- **Detección automática de variante binaria**: distingue la variante Int32 (Aodrag9) de la Int16 (Aom2018) al cargar y la conserva al guardar, también vía TXT.
-- **Export TXT estilo DESINDDAT**: exportación en el formato `[INIT]`/`NumXXX=`/`[BodyN]`/`WalkN=` del indexador clásico de Argentum Online.
-- **Validación de celdas** con mensajes de error en español, incluido el número de línea en la importación de TXT.
-- **Arrastrar y soltar** (drag & drop) para abrir archivos.
-- **Guards de integridad** que impiden guardar archivos corruptos (conteo de frames, rangos de 16 bits).
+**Editor profesional de archivos binarios `.ind` / `.dat` de Argentum Online**
 
-## Formatos soportados
+[.NET 9] [WinForms] [Windows]
+
+</div>
+
+---
+
+IndEditor es una aplicación de escritorio para Windows que permite leer, editar y guardar los archivos de datos binarios de **Argentum Online**. Desarrollada con .NET 9 y WinForms, ofrece una interfaz en español con edición en cuadrícula, **round-trip byte-exacto**, y soporte para exportar/importar a formato de texto legible.
+
+## ✨ Características
+
+- 🎯 **Edición visual** en cuadrícula de todos los archivos de datos principales del juego
+- 🔒 **Round-trip byte-exacto**: al guardar sin modificar, el archivo resultante es idéntico byte a byte al original
+- 💾 **Copia de seguridad automática** (`.bak`) antes de guardar
+- 📝 **Exportar a TXT** legible y **reimportar** desde TXT
+- 🔍 **Detección automática** de formato por nombre de archivo (case-insensitive)
+- 🔄 **Detección automática de variante binaria**: distingue Int32 de Int16 al cargar
+- 📋 **Export TXT estilo DESINDDAT**: formato clásico del indexador de Argentum Online
+- ✅ **Validación en vivo** con mensajes de error en español
+- 🖱️ **Arrastrar y soltar** (drag & drop) para abrir archivos
+- 🛡️ **Guards de integridad** que impiden guardar archivos corruptos
+
+## 📁 Formatos soportados
 
 | Formato | Archivos | Registro |
 |---|---|---|
@@ -27,14 +39,16 @@ Editor de archivos binarios `.ind` / `.dat` de **Argentum Online** (mods Aodrag9
 | Fuentes (`texdefault`) | `texdefault1.dat` … `texdefault3.dat` | Cabecera VFH (273 B, un registro) |
 | Minimapa | `minimap.dat` | Colores AARRGGBB |
 
-> **Nota:** los formatos de registros fijos (`ataques.ind`, `personajes.ind`, `fxs.ind`, `cabezas.ind`, `cascos.ind`) existen en dos variantes binarias: **Int32** (Aodrag9, la moderna) e **Int16** (Aom2018, la clásica). La variante se detecta automáticamente al cargar y se conserva al guardar.
+> **Nota**: Los formatos de registros fijos existen en dos variantes binarias: **Int32** e **Int16**. La variante se detecta automáticamente al cargar y se conserva al guardar.
 
-## Requisitos
+## 🚀 Instalación
 
-- Windows 10/11 (o plataforma compatible con .NET 9 y WinForms).
-- [.NET SDK 10](https://dotnet.microsoft.com/download) para compilar.
+### Requisitos previos
 
-## Compilar y ejecutar
+- Windows 10/11
+- [.NET SDK 10](https://dotnet.microsoft.com/download)
+
+### Desde código fuente
 
 ```bash
 git clone https://github.com/scorpio21/EditorInd.git
@@ -42,20 +56,26 @@ cd EditorInd
 dotnet run --project src/IndEditor
 ```
 
-También puedes abrir la solución `IndEditor.sln` en Visual Studio 2022+ y ejecutar el proyecto `IndEditor`.
+### Desde Visual Studio
 
-## Uso
+1. Abre la solución `IndEditor.sln` en Visual Studio 2022+
+2. Ejecuta el proyecto `IndEditor`
 
-1. **Abrir**: `Archivo → Abrir…` (o arrastra el archivo a la ventana). El formato se detecta automáticamente.
-2. **Editar**: modifica los valores directamente en la cuadrícula.
-   - Añadir/eliminar filas con la barra de herramientas.
-   - Validación en vivo: un valor inválido se rechaza con un aviso.
-3. **Guardar**: `Archivo → Guardar` (Ctrl+S). Se ofrece crear una copia de seguridad `.bak`. *Guardar como…* permite elegir otro destino.
-4. **TXT**: `Archivo → Exportar TXT…` para exportar; `Importar TXT…` para reimportar (los errores indican el número de línea). En los formatos de registros fijos la exportación ofrece un selector entre el **formato actual** (el estándar de IndEditor) y el **formato DESINDDAT** (AO clásico).
+## 📖 Uso
 
-### Formato TXT
+### Abrir y editar archivos
 
-La exportación produce una sección `[N]` por registro con pares `campo = valor`:
+1. **Abrir archivo**: `Archivo → Abrir…` (o arrastra el archivo a la ventana)
+2. **Editar valores**: modifica directamente en la cuadrícula
+3. **Añadir/eliminar filas**: usa la barra de herramientas
+4. **Guardar**: `Archivo → Guardar` (Ctrl+S) o `Guardar como…`
+
+### Exportar/Importar TXT
+
+- **Exportar**: `Archivo → Exportar TXT…` - elige entre formato actual o DESINDDAT
+- **Importar**: `Archivo → Importar TXT…` - los errores indican el número de línea
+
+### Formato TXT estándar
 
 ```text
 [1]
@@ -68,8 +88,6 @@ HeadOffsetY = 0
 ```
 
 ### Formato DESINDDAT
-
-La exportación en formato DESINDDAT reproduce el estilo del indexador clásico de Argentum Online, con una sección `[INIT]` que indica el número de registros (`NumBodies=`, `NumAtaques=`, `NumFxs=`, `NumHeads=`, `NumCascos=` según el archivo) y una sección `[BodyN]` / `[FXn]` / `[HeadN]` / `[CascoN]` por registro:
 
 ```text
 [INIT]
@@ -84,32 +102,29 @@ HeadOffsetX=0
 HeadOffsetY=0
 ```
 
-Está disponible para los formatos de registros fijos; `graficos.ind`, `texdefault*.dat` y `minimap.dat` se exportan siempre en el formato actual.
-
-## Arquitectura
+## 🏗️ Arquitectura
 
 ```
-src/IndEditor/       Aplicación WinForms (interfaz en español)
-src/IndLib/          Librería: lectura/escritura binaria, export/import TXT, catálogo de formatos
-tests/IndLib.Tests/  Pruebas unitarias (xUnit)
+src/IndEditor/    Aplicación WinForms (interfaz en español)
+src/IndLib/       Librería: lectura/escritura binaria, export/import TXT
 ```
 
-La librería `IndLib` es independiente de la UI y cubre toda la lógica de formatos:
+**Componentes de IndLib:**
 
-- `IndFormatCatalog` — definición de los formatos binarios.
-- `IndFormatDetector` — detección por nombre de archivo.
-- `IndFileReader` / `IndFileWriter` — lectura y escritura binaria.
-- `TxtExporter` / `TxtImporter` — exportación e importación de texto.
-- `IndValueLogic` — resolución de valores booleanos para round-trip exacto.
+- `IndFormatCatalog` — definición de formatos binarios
+- `IndFormatDetector` — detección por nombre de archivo
+- `IndFileReader` / `IndFileWriter` — lectura y escritura binaria
+- `TxtExporter` / `TxtImporter` — exportación e importación de texto
+- `IndValueLogic` — resolución de valores booleanos para round-trip exacto
 
-## Pruebas
+## 📄 Licencia
 
-```bash
-dotnet test tests/IndLib.Tests
-```
+Proyecto no oficial, sin afiliación con los creadores de Argentum Online.
 
-La suite incluye 63 pruebas: detección de formatos, parseo contra archivos reales, round-trip byte-exacto (10 archivos), export/import TXT y regresiones de integridad.
+---
 
-## Licencia
+<div align="center">
 
-Consulta el repositorio para más detalles. Proyecto no oficial, sin afiliación con los creadores de Argentum Online.
+**[⬆ Volver al inicio](#indeditor)**
+
+</div>
