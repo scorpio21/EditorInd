@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using IndLib;
 
 namespace IndEditor;
@@ -15,6 +16,7 @@ public partial class MainForm : Form
     private readonly ToolStripStatusLabel _lblSize = new();
     private readonly DataGridView _grid = new();
     private readonly Panel _singlePanel = new();
+    private readonly SplitContainer _splitContainer = new();
     private readonly ToolStripMenuItem _menuAdd = new("&Añadir fila");
     private readonly ToolStripMenuItem _menuRemove = new("&Eliminar fila");
 
@@ -25,23 +27,62 @@ public partial class MainForm : Form
     private IndFileData? _data;
     private string _currentPath = "";
     private string? _graficsPath;
+    private IndFileData? _graficosData; // Datos persistentes de graficos.ind
 
     private bool _isClosing = false;
+    private bool _filterEmpty = false;
+    private string _graphicsPath = ""; // Carpeta con PNG
+    private string _graficosIndPath = ""; // Carpeta con graficos.ind
+    private PictureBox? _previewPictureBox;
+    private System.Windows.Forms.Timer? _previewTimer;
+    private Image?[]? _previewFrameImages;
+    private int _previewCurrentFrameIndex;
+    private GrhEntry? _previewGrhEntry;
+    private const string ConfigFileName = "indeditor_config.json";
 
     public MainForm()
     {
         InitializeComponent();
         Text = "IndEditor — Editor de archivos .ind/.dat";
         StartPosition = FormStartPosition.CenterScreen;
-        var iconStream = System.Reflection.Assembly.GetExecutingAssembly()
-            .GetManifestResourceStream("IndEditor.img.ico.Ao.ico");
-        if (iconStream != null)
-            Icon = new Icon(iconStream);
-        Controls.Add(_grid);
-        Controls.Add(_singlePanel);
+        try
+        {
+            var iconStream = System.Reflection.Assembly.GetExecutingAssembly()
+                .GetManifestResourceStream("IndEditor.img.ico.Ao.ico");
+            if (iconStream != null)
+                Icon = new Icon(iconStream);
+        }
+        catch
+        {
+            // Si falla el icono, continuar sin él
+        }
+        
+        // Configurar SplitContainer
+        _splitContainer.Dock = DockStyle.Fill;
+        _splitContainer.Orientation = Orientation.Horizontal;
+        _splitContainer.SplitterDistance = 400;
+        
+        // Panel superior para el grid
         _grid.Dock = DockStyle.Fill;
+        _splitContainer.Panel1.Controls.Add(_grid);
+        
+        // Panel inferior para vista previa
+        _previewPictureBox = new PictureBox
+        {
+            Dock = DockStyle.Fill,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.Black,
+            Visible = false
+        };
+        _splitContainer.Panel2.Controls.Add(_previewPictureBox);
+        
+        Controls.Add(_splitContainer);
         _singlePanel.Dock = DockStyle.Fill;
         _singlePanel.Visible = false;
+        
+        // Cargar configuración guardada
+        LoadConfiguration();
+        
         BuildMenu();
         BuildGrid();
         BuildStatus();
@@ -75,6 +116,17 @@ public partial class MainForm : Form
         file.DropDownItems.Add(new ToolStripSeparator());
         file.DropDownItems.Add(Item("&Salir", (_, _) => Close()));
         _menu.Items.Add(file);
+        
+        var view = new ToolStripMenuItem("&Ver");
+        var filterItem = new ToolStripMenuItem("Ocultar registros vacíos");
+        filterItem.CheckOnClick = true;
+        filterItem.CheckedChanged += (_, _) => ToggleFilterEmpty();
+        view.DropDownItems.Add(filterItem);
+        view.DropDownItems.Add(new ToolStripSeparator());
+        view.DropDownItems.Add(Item("Carpeta de gráficos (PNG)...", SelectGraphicsFolder));
+        view.DropDownItems.Add(Item("Carpeta de graficos.ind...", SelectGraficosIndFolder));
+        _menu.Items.Add(view);
+        
         var help = new ToolStripMenuItem("&Ayuda");
         help.DropDownItems.Add(Item("&Acerca de...", About));
         _menu.Items.Add(help);
@@ -88,6 +140,7 @@ public partial class MainForm : Form
         _grid.AllowUserToDeleteRows = false;
         _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _grid.CellValidating += Grid_CellValidating;
+        _grid.CellClick += Grid_CellClick;
     }
 
     private void BuildStatus()
@@ -195,6 +248,10 @@ public partial class MainForm : Form
         }
         foreach (var rec in _data.Records)
         {
+            // Filtrar registros vacíos si está activo el filtro
+            if (_filterEmpty && IsRecordEmpty(rec, fields))
+                continue;
+
             var cells = new List<object>();
             var raw = new Dictionary<int, short>();
             int cellCol = 0;
@@ -222,6 +279,34 @@ public partial class MainForm : Form
             _grid.Rows.Add(cells.ToArray());
             _boolRaw.Add(raw);
         }
+    }
+
+    private bool IsRecordEmpty(IndRecord rec, IndField[] fields)
+    {
+        // Un registro se considera vacío si el primer campo de array es 0
+        // (similar al código VB6: If MisAtaques(i).Body(1) Then)
+        foreach (var f in fields)
+        {
+            if (f.Type == IndFieldType.Int32Array)
+            {
+                var arr = (int[])rec.Values[f.Name];
+                if (arr.Length > 0 && arr[0] != 0)
+                    return false;
+            }
+            else if (f.Type == IndFieldType.Int16Array)
+            {
+                var arr = (int[])rec.Values[f.Name];
+                if (arr.Length > 0 && arr[0] != 0)
+                    return false;
+            }
+        }
+        return true;
+    }
+
+    private void ToggleFilterEmpty()
+    {
+        _filterEmpty = !_filterEmpty;
+        ReloadViews();
     }
 
     private void PopulateGrhGrid()
@@ -559,6 +644,306 @@ public partial class MainForm : Form
         {
             e.Cancel = true;
             MessageBox.Show(this, "Valor inválido en la celda.", "Error de validación", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void Grid_CellClick(object? sender, DataGridViewCellEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+        if (_data == null) return;
+        
+        var cell = _grid[e.ColumnIndex, e.RowIndex];
+        if (cell.Value == null) return;
+        
+        // Solo procesar celdas con valores numéricos (GRH)
+        if (int.TryParse(cell.Value.ToString(), out int grhNumber) && grhNumber > 0)
+        {
+            if (string.IsNullOrEmpty(_graphicsPath))
+            {
+                MessageBox.Show(this, 
+                    "No hay carpeta de gráficos configurada.\n\nVe a Ver → Carpeta de gráficos... para configurarla.", 
+                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            ShowGrhPreviewInPanel(grhNumber);
+        }
+    }
+
+    private void SelectGraphicsFolder(object? sender, EventArgs e)
+    {
+        using var dlg = new FolderBrowserDialog();
+        dlg.Description = "Selecciona la carpeta de gráficos (PNG)";
+        if (!string.IsNullOrEmpty(_graphicsPath))
+            dlg.SelectedPath = _graphicsPath;
+        
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            _graphicsPath = dlg.SelectedPath;
+            SaveConfiguration();
+            MessageBox.Show(this, $"Carpeta de gráficos (PNG) configurada:\n{_graphicsPath}", 
+                "Configuración", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    private void SelectGraficosIndFolder(object? sender, EventArgs e)
+    {
+        using var dlg = new FolderBrowserDialog();
+        dlg.Description = "Selecciona la carpeta con graficos.ind (ej: Init/)";
+        if (!string.IsNullOrEmpty(_graficosIndPath))
+            dlg.SelectedPath = _graficosIndPath;
+        
+        if (dlg.ShowDialog(this) == DialogResult.OK)
+        {
+            _graficosIndPath = dlg.SelectedPath;
+            SaveConfiguration();
+            
+            // Intentar cargar graficos.ind
+            string graficosIndFile = Path.Combine(_graficosIndPath, "graficos.ind");
+            if (File.Exists(graficosIndFile))
+            {
+                try
+                {
+                    _graficosData = IndFileReader.Read(graficosIndFile);
+                    MessageBox.Show(this, $"Carpeta de graficos.ind configurada:\n{_graficosIndPath}\n\ngraficos.ind cargado: {_graficosData.GrhEntries.Count} GRH entries", 
+                        "Configuración", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show(this, $"Carpeta de graficos.ind configurada:\n{_graficosIndPath}\n\nError al cargar graficos.ind:\n{ex.Message}", 
+                        "Configuración", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+            else
+            {
+                MessageBox.Show(this, $"Carpeta de graficos.ind configurada:\n{_graficosIndPath}\n\nNo se encontró graficos.ind en la carpeta", 
+                    "Configuración", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+    }
+
+    private void ShowGrhPreviewInPanel(int grhNumber)
+    {
+        // Detener animación anterior si existe
+        if (_previewTimer != null)
+        {
+            _previewTimer.Stop();
+            _previewTimer.Dispose();
+            _previewTimer = null;
+        }
+        
+        // Liberar imágenes anteriores
+        if (_previewFrameImages != null)
+        {
+            foreach (var img in _previewFrameImages)
+            {
+                img?.Dispose();
+            }
+            _previewFrameImages = null;
+        }
+        
+        // Buscar el GRH en graficos.ind (datos persistentes) o en el archivo actual
+        GrhEntry? grhEntry = null;
+        
+        // Primero buscar en graficos.ind cargado
+        if (_graficosData?.GrhEntries != null)
+        {
+            foreach (var entry in _graficosData.GrhEntries)
+            {
+                if (entry.Grh == grhNumber)
+                {
+                    grhEntry = entry;
+                    break;
+                }
+            }
+        }
+        
+        // Si no se encuentra, buscar en el archivo actual (si es graficos.ind)
+        if (grhEntry == null && _data?.GrhEntries != null)
+        {
+            foreach (var entry in _data.GrhEntries)
+            {
+                if (entry.Grh == grhNumber)
+                {
+                    grhEntry = entry;
+                    break;
+                }
+            }
+        }
+
+        _previewGrhEntry = grhEntry;
+        _previewPictureBox!.Visible = true;
+        
+        try
+        {
+            if (grhEntry == null || !grhEntry.HasData)
+            {
+                // GRH no tiene datos en graficos.ind, intentar cargar imagen directa
+                LoadSingleImageInPanel(grhNumber);
+                _splitContainer.Panel2.Text = $"GRH {grhNumber} (Sin datos en graficos.ind)";
+                return;
+            }
+
+            if (grhEntry.NumFrames <= 1)
+            {
+                // GRH estático
+                LoadSingleImageInPanel(grhEntry.FileNum);
+                _splitContainer.Panel2.Text = $"GRH {grhNumber} | FileNum: {grhEntry.FileNum} | SX: {grhEntry.SX} SY: {grhEntry.SY}";
+            }
+            else
+            {
+                // GRH animado - los frames son números de GRH que apuntan a otros GRH
+                LoadAnimationFramesInPanel(grhEntry);
+                _splitContainer.Panel2.Text = $"GRH {grhNumber} | Frames: {grhEntry.NumFrames} | Velocidad: {grhEntry.Speed:F2}";
+                _previewTimer = new System.Windows.Forms.Timer { Interval = (int)(grhEntry.Speed * 1000) };
+                _previewTimer.Tick += PreviewTimer_Tick;
+                _previewTimer.Start();
+            }
+        }
+        catch (Exception ex)
+        {
+            _previewPictureBox.Image = null;
+            _splitContainer.Panel2.Text = $"Error al cargar GRH {grhNumber}: {ex.Message}";
+        }
+    }
+
+    private void LoadSingleImageInPanel(int fileNumber)
+    {
+        string imagePath = Path.Combine(_graphicsPath, $"{fileNumber}.png");
+        if (File.Exists(imagePath))
+        {
+            _previewPictureBox!.Image = Image.FromFile(imagePath);
+        }
+        else
+        {
+            _previewPictureBox!.Image = null;
+            _splitContainer.Panel2.Text = $"Archivo no encontrado: {imagePath}";
+        }
+    }
+
+    private void LoadAnimationFramesInPanel(GrhEntry grhEntry)
+    {
+        if (grhEntry.Frames == null || grhEntry.Frames.Length == 0)
+            return;
+
+        _previewFrameImages = new Image[grhEntry.Frames.Length];
+        
+        // Usar graficos.ind cargado si está disponible, si no usar el archivo actual
+        var allGrhEntries = _graficosData?.GrhEntries?.ToList() ?? _data?.GrhEntries?.ToList() ?? new List<GrhEntry>();
+        
+        for (int i = 0; i < grhEntry.Frames.Length; i++)
+        {
+            int frameGrhNumber = grhEntry.Frames[i];
+            
+            // Buscar el GRH del frame en la lista completa
+            GrhEntry? frameGrh = null;
+            foreach (var entry in allGrhEntries)
+            {
+                if (entry.Grh == frameGrhNumber && entry.HasData)
+                {
+                    frameGrh = entry;
+                    break;
+                }
+            }
+            
+            if (frameGrh != null && frameGrh.NumFrames <= 1)
+            {
+                // El frame es un GRH estático, cargar su FileNum
+                string imagePath = Path.Combine(_graphicsPath, $"{frameGrh.FileNum}.png");
+                if (File.Exists(imagePath))
+                {
+                    _previewFrameImages[i] = Image.FromFile(imagePath);
+                }
+            }
+            else if (frameGrh == null)
+            {
+                // Si no se encuentra el GRH, intentar cargar directamente por número
+                string imagePath = Path.Combine(_graphicsPath, $"{frameGrhNumber}.png");
+                if (File.Exists(imagePath))
+                {
+                    _previewFrameImages[i] = Image.FromFile(imagePath);
+                }
+            }
+        }
+
+        if (_previewFrameImages.Length > 0 && _previewFrameImages[0] != null)
+        {
+            _previewCurrentFrameIndex = 0;
+            _previewPictureBox!.Image = _previewFrameImages[0];
+        }
+    }
+
+    private void PreviewTimer_Tick(object? sender, EventArgs e)
+    {
+        if (_previewFrameImages == null || _previewFrameImages.Length == 0)
+            return;
+
+        _previewCurrentFrameIndex = (_previewCurrentFrameIndex + 1) % _previewFrameImages.Length;
+        if (_previewFrameImages[_previewCurrentFrameIndex] != null)
+        {
+            _previewPictureBox!.Image = _previewFrameImages[_previewCurrentFrameIndex];
+        }
+    }
+
+    // ---------- Configuración ----------
+
+    private void LoadConfiguration()
+    {
+        try
+        {
+            string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ConfigFileName);
+            if (File.Exists(configPath))
+            {
+                string json = File.ReadAllText(configPath);
+                var config = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+                if (config != null)
+                {
+                    if (config.ContainsKey("GraphicsPath"))
+                    {
+                        _graphicsPath = config["GraphicsPath"];
+                    }
+                    if (config.ContainsKey("GraficosIndPath"))
+                    {
+                        _graficosIndPath = config["GraficosIndPath"];
+                        
+                        // Cargar graficos.ind automáticamente si existe
+                        string graficosIndFile = Path.Combine(_graficosIndPath, "graficos.ind");
+                        if (File.Exists(graficosIndFile))
+                        {
+                            try
+                            {
+                                _graficosData = IndFileReader.Read(graficosIndFile);
+                            }
+                            catch
+                            {
+                                // Ignorar error al cargar graficos.ind
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Ignorar errores al cargar configuración
+        }
+    }
+
+    private void SaveConfiguration()
+    {
+        try
+        {
+            string configPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ConfigFileName);
+            var config = new Dictionary<string, string>
+            {
+                { "GraphicsPath", _graphicsPath },
+                { "GraficosIndPath", _graficosIndPath }
+            };
+            string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, json);
+        }
+        catch
+        {
+            // Ignorar errores al guardar configuración
         }
     }
 

@@ -13,8 +13,4 @@
     <ApplicationIcon>..\..\img\ico\Ao.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="..\..\img\ico\Ao.ico" />
-  </ItemGroup>
-
 </Project>

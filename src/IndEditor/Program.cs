@@ -3,7 +3,7 @@ namespace IndEditor;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    static void Main()
     {
         ApplicationConfiguration.Initialize();
         Application.Run(new MainForm());
