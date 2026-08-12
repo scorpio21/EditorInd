@@ -26,11 +26,17 @@ public partial class MainForm : Form
     private string _currentPath = "";
     private string? _graficsPath;
 
+    private bool _isClosing = false;
+
     public MainForm()
     {
         InitializeComponent();
         Text = "IndEditor — Editor de archivos .ind/.dat";
         StartPosition = FormStartPosition.CenterScreen;
+        var iconStream = System.Reflection.Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("IndEditor.img.ico.Ao.ico");
+        if (iconStream != null)
+            Icon = new Icon(iconStream);
         Controls.Add(_grid);
         Controls.Add(_singlePanel);
         _grid.Dock = DockStyle.Fill;
@@ -40,6 +46,7 @@ public partial class MainForm : Form
         BuildGrid();
         BuildStatus();
         AllowDrop = true;
+        FormClosing += (_, _) => _isClosing = true;
         DragEnter += (_, e) =>
         {
             if (e.Data!.GetDataPresent(DataFormats.FileDrop)) e.Effect = DragDropEffects.Copy;
@@ -530,6 +537,7 @@ public partial class MainForm : Form
 
     private void Grid_CellValidating(object? sender, DataGridViewCellValidatingEventArgs e)
     {
+        if (_isClosing) return;
         if (_colKinds.Count == 0 || e.RowIndex < 0 || e.ColumnIndex >= _colKinds.Count) return;
         var kind = _colKinds[e.ColumnIndex].Kind;
         if (kind == ColKind.Bool || kind == ColKind.ReadOnlyInt) return;

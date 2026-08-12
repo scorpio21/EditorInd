@@ -10,6 +10,11 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>..\..\img\ico\Ao.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\img\ico\Ao.ico" />
+  </ItemGroup>
 
 </Project>
